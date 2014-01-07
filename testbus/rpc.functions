@@ -1,0 +1,66 @@
+#
+# Helper functions for rpc tests
+#
+
+##################################################################
+# Override the timeout for claiming the host.
+# Bringing up a VM guest can take some time, especially if it goes
+# through a firstboot stage first.
+TESTBUS_CLAIM_TIMEOUT=240
+
+function __rpc_run_server {
+	testbus_run_command --host $RPC_SERVER "$@"
+}
+
+function rpc_run_server {
+	__rpc_run_server "$@" || testbus_test_failure
+}
+
+function rpc_run_server_script {
+	rpc_run_server --host $RPC_SERVER --send-script "$@"
+}
+
+
+##################################################################
+# Call rpcinfo and verify its output
+# Arguments:
+#    testname program-path arguments...
+# Expected output is piped to this function's stdin, so that
+# you can invoked it like this:
+#
+# rpc_verify_rpcinfo verify-foo rpcinfo -p ::1 <<EOF
+# ... expected output
+# EOF
+##################################################################
+function rpc_verify_rpcinfo {
+
+	local testname command expected received 
+
+	testname=$1; shift
+	command="$*"
+
+	testbus_test_begin $testname
+
+	expected=`testbus_new_tempfile expected`
+	cat - >$expected
+
+	received=`testbus_new_tempfile received`
+	rpc_run_server $command >$received || return 1
+
+	if [ -s $expected -a ! -s $received ]; then
+		testbus_test_failure "$command returned no output"
+		echo "Expected:"; cat $expected
+		return 1
+	fi
+
+	if ! diff -qsw $expected $received; then
+		testbus_test_failure "$command did not return the expected registrations"
+		echo "Expected:"; cat $expected
+		echo "Received:"; cat $received
+		return 1
+	fi >&2
+
+	testbus_test_success
+	return 0;
+}
+

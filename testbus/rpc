@@ -1,0 +1,106 @@
+#!/bin/bash
+#
+# This script uses testbus to test libtirpc, rpcbind and rpcinfo
+#
+
+USE_YAST=true
+
+# TESTBUS_SELFTEST_DEBUG=all
+
+. /usr/share/testbus/functions
+. $0.functions
+
+TMPDIR=/tmp/testbus-rpc
+mkdir -p $TMPDIR
+
+testbus_group_begin $0
+
+RPC_SERVER=`testbus_claim_host --role rpc_server`
+test -n "$RPC_SERVER" || testbus_exit_fail "unable to claim test host"
+
+##################################################################
+# Initialize rpc using yast2
+##################################################################
+testbus_group_begin rpc-init
+
+testbus_test_begin start
+rpc_run_server systemctl enable rpcbind.socket
+rpc_run_server systemctl start rpcbind.socket
+
+testbus_test_begin find-rpcinfo
+RPCINFO=
+for path in /sbin/rpcinfo /usr/sbin/rpcinfo /bin/rpcinfo /usr/bin/rpcinfo; do
+	if __rpc_run_server /usr/bin/test -f $path; then
+		RPCINFO=$path
+		break
+	fi
+done
+if [ -z "$RPCINFO" ]; then
+	testbus_test_failure "Cannot find rpcinfo binary"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo
+if ! rpc_run_server $RPCINFO >/dev/null; then
+	testbus_test_failure "$RPCINFO does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-v4
+if ! rpc_run_server $RPCINFO 127.0.0.1 >/dev/null; then
+	testbus_test_failure "$RPCINFO 127.0.0.1 does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-v6
+if ! rpc_run_server $RPCINFO ::1 >/dev/null; then
+	testbus_test_failure "$RPCINFO ::1 does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-p
+if ! rpc_run_server $RPCINFO -p >/dev/null; then
+	testbus_test_failure "$RPCINFO -p does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-p-v4
+if ! rpc_run_server $RPCINFO -p 127.0.0.1 >/dev/null; then
+	testbus_test_failure "$RPCINFO -p 127.0.0.1 does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-p-v6
+if ! rpc_run_server $RPCINFO -p ::1 >/dev/null; then
+	testbus_test_failure "$RPCINFO -p ::1 does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-m
+if ! rpc_run_server $RPCINFO -m >/dev/null; then
+	testbus_test_failure "$RPCINFO -m does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-m-v4
+if ! rpc_run_server $RPCINFO -m 127.0.0.1 >/dev/null; then
+	testbus_test_failure "$RPCINFO -m 127.0.0.1 does not seem to work"
+	exit 1
+fi
+
+testbus_test_begin check-rpcinfo-m-v6
+if ! rpc_run_server $RPCINFO -m ::1 >/dev/null; then
+	testbus_test_failure "$RPCINFO -m ::1 does not seem to work"
+	exit 1
+fi
+
+rpc_verify_rpcinfo verify-listing-nohost $RPCINFO -p <<EOF
+   program vers proto   port  service
+    100000    4   tcp    111  portmapper
+    100000    3   tcp    111  portmapper
+    100000    2   tcp    111  portmapper
+    100000    4   udp    111  portmapper
+    100000    3   udp    111  portmapper
+    100000    2   udp    111  portmapper
+EOF
+

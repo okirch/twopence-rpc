@@ -1,0 +1,23 @@
+#!/bin/bash
+
+basedir=${0%/*}
+
+myname=$0
+case $myname in
+*.run)
+	test_script=${0%.run};;
+*)
+	echo "$0: script name does not have .run suffix" >&2
+	exit 1;;
+esac
+
+image=$1
+if [ -z "$image" ]; then
+	echo "$0: expected image argument" >&2
+	exit 1
+fi
+
+testbus-control-kvm start sut $image
+$test_script
+testbus-control-kvm stop sut
+
