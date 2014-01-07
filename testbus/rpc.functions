@@ -72,3 +72,62 @@ function rpc_verify_rpcinfo {
 	return 0;
 }
 
+##################################################################
+# Run a series of rpcinfo NULL calls.
+# The arguments to this functions consist of pairs of
+# netid and host name/address
+##################################################################
+function rpc_verify_rpcinfo_null {
+
+	local host
+
+	host=$1; shift
+
+	while [ $# -gt 0 ]; do
+		local netid address output
+
+		netid=$1
+		address=$2
+		shift 2;
+
+		testbus_test_begin rpcinfo-null-$netid
+
+		output=`testbus_new_tempfile output`
+		if ! testbus_run_command --host $host $RPCINFO -T $netid $address portmapper >$output; then
+			testbus_test_failure "$RPCINFO exited with status $?"
+			continue
+		fi
+
+		if [ ! -s $output ]; then
+			testbus_test_failure "$RPCINFO exited with status 0, but did not generate any output"
+		fi
+
+		cat $output
+		testbus_test_success
+	done
+}
+
+##################################################################
+# Verify that rpcinfo -b works
+##################################################################
+function rpc_verify_rpcinfo_broadcast {
+
+	local output rpcprog
+
+	rpcprog=$1; shift
+
+	testbus_test_begin rpcinfo-broadcast
+
+	output=`testbus_new_tempfile output`
+	if ! rpc_run_client $RPCINFO -b $rpcprog 2 >$output; then
+		testbus_test_failure "$RPCINFO exited with status $?"
+		continue
+	fi
+
+	if [ ! -s $output ]; then
+		testbus_test_failure "$RPCINFO exited with status 0, but did not generate any output"
+	fi
+
+	cat $output
+	testbus_test_success
+}
