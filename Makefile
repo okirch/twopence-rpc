@@ -4,7 +4,7 @@ testdir	= /usr/share/testbus/suites
 
 CFLAGS	= -Wall -O2 -I/usr/include/tirpc -I.
 APPS	= rpc.squared square rpctest getaddr
-LINK	= -ltirpc -L. -lrpctest
+LINK	= -L. -lrpctest -ltirpc
 SCRIPTS	= testbus/rpc \
 	  testbus/rpc.functions \
 	  testbus/rpc.run
