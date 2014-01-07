@@ -27,17 +27,23 @@
  */
 #include "rpctest.h"
 #include <getopt.h>
+#include <unistd.h>
 
 int
 main(int argc, char **argv)
 {
 	const char *opt_hostname = NULL;
 	const char *opt_nettype[16];
+	int opt_foreground = 0;
 	unsigned int num_nettypes = 0;
 	int c;
 
-	while ((c = getopt(argc, argv, "h:T:")) != EOF) {
+	while ((c = getopt(argc, argv, "fh:T:")) != EOF) {
 		switch (c) {
+		case 'f':
+			opt_foreground = 1;
+			break;
+
 		case 'h':
 			opt_hostname = optarg;
 			break;
@@ -71,6 +77,11 @@ main(int argc, char **argv)
 		}
 	} else {
 		rpctest_run_oldstyle(SQUARE_PROG, SQUARE_VERS, square_prog_1);
+	}
+
+	if (!opt_foreground && daemon(0, 0) < 0) {
+		fprintf(stderr, "Unable to background process\n");
+		return 1;
 	}
 
 	svc_run();

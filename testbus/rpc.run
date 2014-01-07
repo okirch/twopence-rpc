@@ -17,7 +17,9 @@ if [ -z "$image" ]; then
 	exit 1
 fi
 
-testbus-control-kvm start sut $image
+testbus-control-kvm start client $image
+testbus-control-kvm start server $image
 $test_script
-testbus-control-kvm stop sut
+testbus-control-kvm stop client
+testbus-control-kvm stop server
 

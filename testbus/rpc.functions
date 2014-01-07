@@ -20,6 +20,14 @@ function rpc_run_server_script {
 	rpc_run_server --host $RPC_SERVER --send-script "$@"
 }
 
+function __rpc_run_client {
+	testbus_run_command --host $RPC_CLIENT "$@"
+}
+
+function rpc_run_client {
+	__rpc_run_client "$@" || testbus_test_failure
+}
+
 
 ##################################################################
 # Call rpcinfo and verify its output

@@ -13,10 +13,16 @@ USE_YAST=true
 TMPDIR=/tmp/testbus-rpc
 mkdir -p $TMPDIR
 
+##################################################################
+# Testbus initialization
+##################################################################
 testbus_group_begin $0
 
 RPC_SERVER=`testbus_claim_host --role rpc_server`
-test -n "$RPC_SERVER" || testbus_exit_fail "unable to claim test host"
+test -n "$RPC_SERVER" || testbus_exit_fail "unable to claim server"
+
+RPC_CLIENT=`testbus_claim_host --role rpc_client`
+test -n "$RPC_CLIENT" || testbus_exit_fail "unable to claim client"
 
 ##################################################################
 # Initialize rpc using yast2
@@ -40,58 +46,57 @@ if [ -z "$RPCINFO" ]; then
 	exit 1
 fi
 
-testbus_test_begin check-rpcinfo
+testbus_test_begin verify-rpcinfo
 if ! rpc_run_server $RPCINFO >/dev/null; then
 	testbus_test_failure "$RPCINFO does not seem to work"
 	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-v4
+testbus_group_finish
+
+##################################################################
+# Check basic rpcinfo functionality
+##################################################################
+testbus_group_begin basic-rpcinfo
+
+testbus_test_begin rpcinfo-v4
 if ! rpc_run_server $RPCINFO 127.0.0.1 >/dev/null; then
 	testbus_test_failure "$RPCINFO 127.0.0.1 does not seem to work"
-	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-v6
+testbus_test_begin rpcinfo-v6
 if ! rpc_run_server $RPCINFO ::1 >/dev/null; then
 	testbus_test_failure "$RPCINFO ::1 does not seem to work"
-	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-p
+testbus_test_begin rpcinfo-p
 if ! rpc_run_server $RPCINFO -p >/dev/null; then
 	testbus_test_failure "$RPCINFO -p does not seem to work"
-	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-p-v4
+testbus_test_begin rpcinfo-p-v4
 if ! rpc_run_server $RPCINFO -p 127.0.0.1 >/dev/null; then
 	testbus_test_failure "$RPCINFO -p 127.0.0.1 does not seem to work"
-	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-p-v6
+testbus_test_begin rpcinfo-p-v6
 if ! rpc_run_server $RPCINFO -p ::1 >/dev/null; then
 	testbus_test_failure "$RPCINFO -p ::1 does not seem to work"
-	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-m
+testbus_test_begin rpcinfo-m
 if ! rpc_run_server $RPCINFO -m >/dev/null; then
 	testbus_test_failure "$RPCINFO -m does not seem to work"
-	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-m-v4
+testbus_test_begin rpcinfo-m-v4
 if ! rpc_run_server $RPCINFO -m 127.0.0.1 >/dev/null; then
 	testbus_test_failure "$RPCINFO -m 127.0.0.1 does not seem to work"
-	exit 1
 fi
 
-testbus_test_begin check-rpcinfo-m-v6
+testbus_test_begin rpcinfo-m-v6
 if ! rpc_run_server $RPCINFO -m ::1 >/dev/null; then
 	testbus_test_failure "$RPCINFO -m ::1 does not seem to work"
-	exit 1
 fi
 
 rpc_verify_rpcinfo verify-listing-nohost $RPCINFO -p <<EOF
@@ -104,3 +109,4 @@ rpc_verify_rpcinfo verify-listing-nohost $RPCINFO -p <<EOF
     100000    2   udp    111  portmapper
 EOF
 
+testbus_group_finish
