@@ -1,0 +1,30 @@
+
+To cover
+	svc{udp,tcp,..}_create
+	clnt{udp,tcp,...}_create
+	Registering services through old API, and calling through new API
+	Vice versa
+	broadcast and indirect calls
+
+	rpcb_getaddr with a buffer that's too small
+	rpcb_getaddr with garbage args
+
+Do all of our tests remotely, too
+
+1. getaddr
+	./getaddr --fail-unknown 100000 --netid udp6 --host wotan.suse.de
+	TEST: Calling getaddr("udp6", 100000, 0, owner="getaddr", addr-hint="::ffff:10.120.0.1.0.111") at host ::ffff:10.120.0.1.0.111 via udp6
+	0.0.0.0.0.111
+
+	Shouldn't this return an IPv6 uaddr?
+
+2. getaddr
+	./getaddr --fail-unknown 100000 --netid udp --use-getversaddr
+	TEST: Calling getaddr("udp", 100000, 0, owner="getaddr", addr-hint="127.0.0.1.0.111") at host 127.0.0.1.0.111 via udp
+	FAIL: getaddr(udp, 100000, 0, 127.0.0.1.0.111): not registered
+
+	Should this really fail?
+
+3. callit
+	Check if the callit procedure works
+	Check that the IPv4 broadcast never returns an IPv6 uaddr

@@ -1,0 +1,59 @@
+testbus-rpc
+===========
+
+Scripts for testing libtirpc, rpcbind and utilities with testbus.
+
+
+testbus/
+	This directory contains the scripts needed to run these
+	tests under testbus
+
+src/
+	This contains the C utilities that come with this test
+	suite.
+
+
+The "square" client and server
+==============================
+
+This one uses the server to compute the square of a number. You can
+use this to write scripted test scenarios. There's not much variety
+in this, yet, but more functionality can be added if needed.
+
+
+The "rpctest" libtirpc unit tests
+=================================
+
+The other C utility is a program to unit test libtirpc. Simply invoke as
+./rpctest and it will run through about 100 different test cases,
+exercising a fairly large number of common tirpc interfaces. I'm still
+working on this part, so more functionality should be added soon.
+
+The rpctest tool can be run both as root user, and as normal user - and
+both should actually be attempted for verification, because when run
+as root, it will try to do a few more things than as a normal user.
+
+When you run this on older versions of libtirpc, you will see it crash,
+or print messages about certain test cases crashing (the code tries to
+catch some well-known crashes gracefully). Fixes for these are available
+from https://gitorious.org/libtirpc/libtirpc/commits/for-upstream
+
+rpctest understands the following options:
+
+ -D
+ 	run disputed test cases. Currently, this mostly covers
+	tests that check behavior of rpcbind versus registrations
+	of privileged ports when the user is not root. Several
+	developers believe that the notion of privileged ports
+	should not be honored by rpcbind.
+
+ -q
+ 	run more quietly. By default, rpctest will print a message
+	regarding each test case it executes. By specifying -q,
+	only failing test cases will be printed.
+
+ -h hostname
+ 	This doesn't do anything useful yet
+
+Enjoy
+okir
