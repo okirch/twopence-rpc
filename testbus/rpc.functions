@@ -61,7 +61,10 @@ function rpc_verify_rpcinfo {
 		return 1
 	fi
 
-	if ! diff -qsw $expected $received; then
+	sort $received >$received.sort
+	sort $expected >$expected.sort
+
+	if ! diff -qsb $expected.sort $received.sort; then
 		testbus_test_failure "$command did not return the expected registrations"
 		echo "Expected:"; cat $expected
 		echo "Received:"; cat $received
