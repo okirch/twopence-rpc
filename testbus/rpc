@@ -129,6 +129,8 @@ rpc_verify_rpcinfo verify-binding-nohost $RPCINFO <<EOF
     100000    3    local     /run/rpcbind.sock      portmapper superuser
 EOF
 
+testbus_group_finish
+
 ##################################################################
 # Check basic rpcinfo functionality remotely
 ##################################################################
@@ -153,7 +155,8 @@ fi
 # IPv6 testing
 rpc_verify_rpcinfo_null $RPC_CLIENT udp $RPC_SERVER_IP tcp $RPC_SERVER_IP
 
-#rpc_verify_rpcinfo_broadcast portmapper
+rpc_verify_rpcinfo_broadcast portmapper
+
 testbus_group_finish
 
 ##################################################################
