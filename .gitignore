@@ -20,3 +20,10 @@ getaddr
 rpc.squared
 rpctest
 square
+
+.*
+
+# rpcgen output files
+src/square_clnt.c
+src/square_svc.c
+src/square_xdr.c
