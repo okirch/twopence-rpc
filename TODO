@@ -1,0 +1,8 @@
+
+rpctest:
+	Add an output mode that prints test info that conforms to
+	testbus standard
+
+	Allow running against a non-local host (means we need to skip
+	any set/unset related tests)
+
