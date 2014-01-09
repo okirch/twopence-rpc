@@ -272,12 +272,11 @@ rpctest_verify_clntunix_create(rpcprog_t prog, rpcvers_t vers)
 {
 	int sockfd = RPC_ANYSOCK;
 	CLIENT	*clnt;
-	int termsig;
+	int termsig, rv;
 
 	log_test("Verify clntunix_create()");
-	fprintf(stderr, "** do not be alarmed if there's a libc crash **\n");
 
-	switch (rpctest_try_catch_crash(&termsig)) {
+	switch (rpctest_try_catch_crash(&termsig, &rv)) {
 	default:
 		/* An error occurred when trying to fork etc. */
 		return 0;
@@ -288,12 +287,13 @@ rpctest_verify_clntunix_create(rpcprog_t prog, rpcvers_t vers)
 		exit(0);
 
 	case 1:
-		if (termsig) {
-			log_fail("clntunix_create(%s, %lu, %lu) CRASHED with signal %u",
-					SQUARE_LOCAL_ADDR, prog, vers,
-					termsig);
-			return 0;
-		}
+		break;
+
+	case 2:
+		log_fail("clntunix_create(%s, %lu, %lu) CRASHED with signal %u",
+				SQUARE_LOCAL_ADDR, prog, vers,
+				termsig);
+		return 0;
 	}
 
 	clnt = clntunix_create((struct sockaddr_un *) build_local_address(SQUARE_LOCAL_ADDR),

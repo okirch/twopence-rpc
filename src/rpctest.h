@@ -77,7 +77,7 @@ extern void	rpctest_drop_privileges(void);
 extern void	rpctest_resume_privileges(void);
 extern rpctest_process_t *rpctest_fork_server(void);
 extern int	rpctest_kill_process(rpctest_process_t *);
-extern int	rpctest_try_catch_crash(int *termsig);
+extern int	rpctest_try_catch_crash(int *termsig, int *exit_code);
 extern const struct sockaddr *loopback_address(int af);
 extern const struct sockaddr_un *build_local_address(const char *);
 extern struct netbuf *rpctest_get_static_netbuf(size_t size);

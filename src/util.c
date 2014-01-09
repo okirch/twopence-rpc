@@ -96,10 +96,10 @@ rpctest_kill_process(rpctest_process_t *proc)
 /*
  * Use this to run something and catch a crash
  * Returns 0 for the child process, negative on error
- * and positive for success.
+ * and 1 for success, 2 for crash.
  */
 int
-rpctest_try_catch_crash(int *termsig)
+rpctest_try_catch_crash(int *termsig, int *exit_code)
 {
 	pid_t pid;
 	int status;
@@ -130,8 +130,19 @@ rpctest_try_catch_crash(int *termsig)
 		return -1;
 	}
 
-	*termsig = WIFSIGNALED(status)? WTERMSIG(status) : 0;
-	return 1;
+	*exit_code = *termsig = 0;
+	if (WIFEXITED(status)) {
+		*exit_code = WEXITSTATUS(status);
+		return 1;
+	}
+
+	if (WIFSIGNALED(status)) {
+		*termsig = WTERMSIG(status);
+		return 2;
+	}
+	
+	log_fail("unexpected wait status (neither exited nor crashed)");
+	return 0;
 }
 
 struct netbuf *

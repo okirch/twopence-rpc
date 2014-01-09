@@ -41,18 +41,19 @@ struct rpcb_conninfo {
 extern int	rpctest_rpcb_unset_wildcard(rpcprog_t);
 static int	__rpctest_rpcb_unset_wildcard(struct rpcb_conninfo *, rpcprog_t);
 extern void	rpctest_verify_rpcb_set(struct rpcb_conninfo *,
-				const char *progname, const RPCB *, int);
+				const char *progname, const RPCB *, int, int may_crash);
 extern void	rpctest_verify_rpcb_unset(struct rpcb_conninfo *,
 				const char *program_name,
-				const struct rpcb *, int);
+				const struct rpcb *, int, int may_crash);
 static int	rpctest_verify_rpcb_registration_pmap(struct rpcb_conninfo *,
 				const char *, const struct rpcb *);
 static void	rpctest_verify_rpcb_getaddr(struct rpcb_conninfo *, const char *, const struct rpcb *);
+static int	rpctest_verify_rpcb_gettime(struct rpcb_conninfo *);
 static int	rpctest_verify_rpcb_misc(struct rpcb_conninfo *);
 static int	rpctest_verify_rpcb_crashme(void);
 static int	__rpctest_verify_rpcb_addrfunc(const char *);
-static int	__rpctest_verify_rpcb_registration(struct rpcb_conninfo *, const struct rpcb *);
-static int	__rpctest_verify_rpcb_unregistration(struct rpcb_conninfo *, const struct rpcb *);
+static int	__rpctest_verify_rpcb_registration(struct rpcb_conninfo *, const struct rpcb *, int);
+static int	__rpctest_verify_rpcb_unregistration(struct rpcb_conninfo *, const struct rpcb *, int);
 static RPCB *	__rpctest_rpcb_get_registrations(const struct rpcb_conninfo *, rpcprog_t);
 static bool_t	__rpctest_rpcb_set(struct rpcb_conninfo *, const struct rpcb *);
 static void	__rpctest_rpcb_unset(struct rpcb_conninfo *, const struct rpcb *);
@@ -149,25 +150,24 @@ rpctest_verify_rpcb_all(unsigned int flags)
 
 	rpctest_rpcb_unset_wildcard(SQUARE_PROG);
 
-	rpctest_verify_rpcb_set(ci, "square program",
-			__square_binding, 0);
+	rpctest_verify_rpcb_set(ci, "square program", __square_binding, 0, 0);
 	rpctest_verify_rpcb_registration_pmap(ci, "square program", __square_binding);
-	rpctest_verify_rpcb_unset(ci, "square program", __square_binding, 0);
+	rpctest_verify_rpcb_unset(ci, "square program", __square_binding, 0, 0);
 
 	rpctest_rpcb_unset_wildcard(SQUARE_PROG);
 
 	if (flags & RPF_DISPUTED) {
 		if (geteuid() == 0) {
-			rpctest_verify_rpcb_set(ci, "square program (with privports)", __square_binding_root, 0);
-			rpctest_verify_rpcb_unset(ci, "square program (with privports)", __square_binding_root, 0);
+			rpctest_verify_rpcb_set(ci, "square program (with privports)", __square_binding_root, 0, 0);
+			rpctest_verify_rpcb_unset(ci, "square program (with privports)", __square_binding_root, 0, 0);
 
 			__rpctest_rpcb_unset_wildcard(ci, SQUARE_PROG);
 
 			rpctest_drop_privileges();
-			rpctest_verify_rpcb_set(ci, "square program (with privports, unpriv user)", __square_binding_root, 1);
+			rpctest_verify_rpcb_set(ci, "square program (with privports, unpriv user)", __square_binding_root, 1, 0);
 			rpctest_resume_privileges();
 		} else {
-			rpctest_verify_rpcb_set(ci, "square program (with privports, unpriv user)", __square_binding_root, 1);
+			rpctest_verify_rpcb_set(ci, "square program (with privports, unpriv user)", __square_binding_root, 1, 0);
 		}
 	}
 
@@ -177,8 +177,8 @@ rpctest_verify_rpcb_all(unsigned int flags)
 		char message[128];
 
 		snprintf(message, sizeof(message), "square program (talking to rpcb via %s transport)", ci->netid);
-		rpctest_verify_rpcb_set(ci, message, __square_binding, 0);
-		rpctest_verify_rpcb_unset(ci, message, __square_binding, 0);
+		rpctest_verify_rpcb_set(ci, message, __square_binding, 0, 0);
+		rpctest_verify_rpcb_unset(ci, message, __square_binding, 0, 0);
 	}
 
 	rpctest_verify_rpcb_getaddr(conn_info, "square program", __square_binding);
@@ -186,7 +186,7 @@ rpctest_verify_rpcb_all(unsigned int flags)
 	if (getifaddrs(&ifa_list) < 0) {
 		log_fatal("getifaddrs failed: %m");
 	} else {
-		struct rpcb_conninfo __ci;
+		struct rpcb_conninfo __ci = { NULL };
 		char message[128];
 		struct ifaddrs *ifp;
 
@@ -234,21 +234,23 @@ rpctest_verify_rpcb_all(unsigned int flags)
 			__ci.af = sa->sa_family;
 
 			snprintf(message, sizeof(message), "square program (talking to rpcb at %s)", __ci.hostname);
-			rpctest_verify_rpcb_set(&__ci, message, __square_binding, 0);
-			rpctest_verify_rpcb_unset(&__ci, message, __square_binding, 0);
+			rpctest_verify_rpcb_set(&__ci, message, __square_binding, 0, 1);
+			rpctest_verify_rpcb_unset(&__ci, message, __square_binding, 0, 1);
 		}
 
 		freeifaddrs(ifa_list);
 	}
 
+	rpctest_verify_rpcb_gettime(&tcp_conn_info);
 	rpctest_verify_rpcb_misc(&tcp_conn_info);
 }
 
 void
 rpctest_verify_rpcb_set(struct rpcb_conninfo *conn_info, const char *program_name,
-			const struct rpcb *rpcbs, int should_fail)
+			const struct rpcb *rpcbs, int should_fail, int may_crash)
 {
 	const struct rpcb *rb;
+	int crashed = 0;
 
 	log_test("Verifying rpcb_set operation for %s", program_name);
 	for (rb = rpcbs; rb->r_prog; ++rb) {
@@ -269,7 +271,33 @@ rpctest_verify_rpcb_set(struct rpcb_conninfo *conn_info, const char *program_nam
 			goto next;
 		}
 
-		rv = rpcb_set(rb->r_prog, rb->r_vers, nconf, addr);
+		if (may_crash) {
+			int termsig;
+
+			switch (rpctest_try_catch_crash(&termsig, &rv)) {
+			default:
+				/* An error occurred when trying to fork etc. */
+				log_fail("fork error");
+				return;
+
+			case 0:
+				rv = rpcb_set(rb->r_prog, rb->r_vers, nconf, addr);
+				exit(rv);
+
+			case 1:
+				break;
+
+			case 2:
+				log_warn("rpcb_set(%u, %u, %s, %s) CRASHED with signal %u",
+						rb->r_prog, rb->r_vers, rb->r_netid, rb->r_addr,
+						termsig);
+				crashed++;
+				continue;
+			}
+		} else {
+			rv = rpcb_set(rb->r_prog, rb->r_vers, nconf, addr);
+		}
+
 		if (!rv && !should_fail) {
 			log_fail("unable to register %u/%u/%s, addr %s",
 					rb->r_prog, rb->r_vers, rb->r_netid, rb->r_addr);
@@ -289,28 +317,37 @@ next:
 
 	}
 
+	if (crashed) {
+		log_trace("Skipping %s verification",
+				should_fail? "unregistration" : "registration");
+		return;
+	}
+
 	if (should_fail) {
-		__rpctest_verify_rpcb_unregistration(conn_info, rpcbs);
-	} else
-		__rpctest_verify_rpcb_registration(conn_info, rpcbs);
+		__rpctest_verify_rpcb_unregistration(conn_info, rpcbs, may_crash);
+	} else {
+		__rpctest_verify_rpcb_registration(conn_info, rpcbs, may_crash);
+	}
 }
 
 void
 rpctest_verify_rpcb_unset(struct rpcb_conninfo *conn_info, const char *program_name,
-			const struct rpcb *rpcbs, int should_fail)
+			const struct rpcb *rpcbs, int should_fail, int may_crash)
 {
 	log_test("Verifying rpcb_unset operation for %s", program_name);
+
+	/* FIXME: do the crash handling fandango */
 	__rpctest_rpcb_unset(conn_info, rpcbs);
 
 	if (!should_fail)
-		__rpctest_verify_rpcb_unregistration(conn_info, rpcbs);
+		__rpctest_verify_rpcb_unregistration(conn_info, rpcbs, may_crash);
 }
 
 int
 rpctest_verify_rpcb_registration(const char *program_name, const struct rpcb *rpcbs)
 {
 	log_test("Verifying rpcb registration for %s", program_name);
-	return __rpctest_verify_rpcb_registration(&tcp_conn_info, rpcbs);
+	return __rpctest_verify_rpcb_registration(&tcp_conn_info, rpcbs, 0);
 }
 
 /*
@@ -377,23 +414,24 @@ rpctest_verify_rpcb_getaddr(struct rpcb_conninfo *conn_info, const char *program
 }
 
 int
-__rpctest_verify_rpcb_unregistration(struct rpcb_conninfo *conn_info, const struct rpcb *rpcbs)
+__rpctest_verify_rpcb_unregistration(struct rpcb_conninfo *conn_info, const struct rpcb *rpcbs, int may_crash)
 {
 	static RPCB no_reg[2];
 	
 	no_reg[0] = rpcbs[0];
 	no_reg[0].r_addr = NULL;
-	return __rpctest_verify_rpcb_registration(conn_info, no_reg);
+	return __rpctest_verify_rpcb_registration(conn_info, no_reg, may_crash);
 }
 
 int
-__rpctest_verify_rpcb_registration(struct rpcb_conninfo *conn_info, const struct rpcb *rpcbs)
+__rpctest_verify_rpcb_registration(struct rpcb_conninfo *conn_info, const struct rpcb *rpcbs, int may_crash)
 {
 	struct netconfig *nconf;
 	const char *bind_server;
 	const struct rpcb *rb;
 	unsigned int i;
 	int success = 1;
+	int crashed = 0;
 
 	if (rpcbs == NULL || rpcbs[0].r_prog == 0) {
 		static int warned;
@@ -434,8 +472,33 @@ __rpctest_verify_rpcb_registration(struct rpcb_conninfo *conn_info, const struct
 			}
 		}
 
-		rv = rpcb_getaddr(rb->r_prog, rb->r_vers, nconf, &abuf, bind_server);
+		if (may_crash) {
+			int termsig;
 
+			switch (rpctest_try_catch_crash(&termsig, &rv)) {
+			default:
+				/* An error occurred when trying to fork etc. */
+				log_fail("fork error");
+				return 0;
+
+			case 0:
+				// log_trace("rpcb_getaddr(%u, %u, %s, bind=%s)", rb->r_prog, rb->r_vers, rb->r_netid, bind_server);
+				rv = rpcb_getaddr(rb->r_prog, rb->r_vers, nconf, &abuf, bind_server);
+				exit(rv);
+
+			case 1:
+				break;
+
+			case 2:
+				log_warn("rpcb_getaddr(%u, %u, %s, bind=%s) CRASHED with signal %u",
+						rb->r_prog, rb->r_vers, rb->r_netid, bind_server, termsig);
+				crashed++;
+				success = 0;
+				continue;
+			}
+		}
+
+		rv = rpcb_getaddr(rb->r_prog, rb->r_vers, nconf, &abuf, bind_server);
 		if (!rv) {
 			freenetconfigent(nconf);
 
@@ -609,30 +672,63 @@ rpctest_verify_rpcb_registration_pmap(struct rpcb_conninfo *conn_info,
 }
 
 /*
+ * Verify rpcb_gettime
+ */
+static int
+rpctest_verify_rpcb_gettime(struct rpcb_conninfo *conn_info)
+{
+	int rv, termsig;
+	time_t rpcb_time;
+
+	log_test("Verify rpcb_gettime(%s)", conn_info->hostname);
+	rpcb_time = 0xd00f00000000ULL;
+
+
+	switch (rpctest_try_catch_crash(&termsig, &rv)) {
+	default:
+		/* An error occurred when trying to fork etc. */
+		log_fail("fork error");
+		return 0;
+
+	case 0:
+		rv = rpcb_gettime(conn_info->hostname, &rpcb_time);
+		exit(rv);
+
+	case 1:
+		break;
+
+	case 2:
+		log_warn("rpcb_gettime(%s) CRASHED with signal %u",
+				conn_info->hostname,
+				termsig);
+		return 0;
+	}
+
+	if (rv == 0) {
+		log_fail("rpcb_gettime failed");
+		return 0;
+	} else if ((rpcb_time & 0xFFFF00000000) == 0xd00f00000000) {
+		log_fail("rpcb_gettime doesn't clear upper bits of time_t");
+		return 0;
+	} else {
+		long delta = rpcb_time - time(NULL);
+
+		if (delta < -1 || 1 < delta) {
+			log_fail("rpcb_gettime's time is %lx seconds off", delta);
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+/*
  * Verify rpcbind ancillary functions
  */
 static int
 rpctest_verify_rpcb_misc(struct rpcb_conninfo *conn_info)
 {
 	int success = 1;
-	time_t rpcb_time;
-
-	log_test("Verify rpcb_gettime(%s)", conn_info->hostname);
-	rpcb_time = 0xd00f00000000ULL;
-	if (!rpcb_gettime(conn_info->hostname, &rpcb_time)) {
-		log_fail("rpcb_gettime failed");
-		success = 0;
-	} else if ((rpcb_time & 0xFFFF00000000) == 0xd00f00000000) {
-		log_fail("rpcb_gettime doesn't clear upper bits of time_t");
-		success = 0;
-	} else {
-		long delta = rpcb_time - time(NULL);
-
-		if (delta < -1 || 1 < delta) {
-			log_fail("rpcb_gettime's time is %lx seconds off", delta);
-			success = 0;
-		}
-	}
 
 	if (!__rpctest_verify_rpcb_addrfunc("udp"))
 		success = 0;
@@ -694,7 +790,7 @@ rpctest_verify_rpcb_crashme(void)
 			}
 		}
 
-		switch (rpctest_try_catch_crash(&termsig)) {
+		switch (rpctest_try_catch_crash(&termsig, &rv)) {
 		default:
 			/* An error occurred when trying to fork etc. */
 			return 0;
@@ -704,15 +800,16 @@ rpctest_verify_rpcb_crashme(void)
 			exit(0);
 
 		case 1:
-			if (termsig) {
-				if (!cma->netid || !cma->hostname)
-					log_warn("rpc_getmaps CRASHED with signal %u", termsig);
-				else
-					log_fail("rpc_getmaps CRASHED with signal %u", termsig);
-				if (cma->flagp)
-					*cma->flagp = 1;
-				continue;
-			}
+			break;
+
+		case 2:
+			if (!cma->netid || !cma->hostname)
+				log_warn("rpc_getmaps CRASHED with signal %u", termsig);
+			else
+				log_fail("rpc_getmaps CRASHED with signal %u", termsig);
+			if (cma->flagp)
+				*cma->flagp = 1;
+			continue;
 		}
 
 		rbl = rpcb_getmaps(nconf, cma->hostname);
