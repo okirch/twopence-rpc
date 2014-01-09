@@ -398,11 +398,17 @@ rpctest_verify_rpcb_getaddr(struct rpcb_conninfo *conn_info, const char *program
 				log_fail("getaddr(%s, %u, %u, %s) %s", ci->netid, rb->r_prog, rb->r_vers, rpcb_uaddr,
 						clnt_sperror(clnt, "failed"));
 				continue;
-			} else if (!__rpctest_verify_uaddr(rb->r_netid, server_uaddr)) {
+			} else
+			if (strcmp(ci->netid, "local")
+			 && !__rpctest_verify_uaddr(ci->netid, server_uaddr)) {
+				/* Note: rpcbind ignores the hint in the RPCB struct passed to it, but
+			 	 * uses the transport over which the query came in.
+				 * Not sure if this is entirely intuitive, but at least it's consistent.
+				 */
 				log_fail("query for <%s, %u, %u> over %s returns \"%s\", which is not a valid %s address",
 						rb->r_netid, rb->r_prog, rb->r_vers, ci->netid,
 						printable(server_uaddr),
-						rb->r_netid);
+						ci->netid);
 			}
 
 			free(server_uaddr);
