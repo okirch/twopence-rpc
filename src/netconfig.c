@@ -57,7 +57,7 @@ rpctest_verify_netconfig_all(void)
 	void *handle;
 	struct netconfig *nconf;
 
-	log_test_group("Verify netconfig functions");
+	log_test_group("netconfig", "Verify netconfig functions");
 
 	for (i = 0; __netconfig_data[i].nc_netid; ++i)
 		rpctest_verify_netconfig(&__netconfig_data[i]);

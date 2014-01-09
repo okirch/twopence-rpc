@@ -31,6 +31,7 @@
 
 #define RPF_DISPUTED	0x0001
 #define RPF_QUIET	0x0002
+#define RPF_TESTBUS	0x0004
 
 typedef struct rpctest_process rpctest_process_t;
 
@@ -41,7 +42,8 @@ extern unsigned int	num_warns;
 typedef void	rpc_program_fn_t(struct svc_req *, register SVCXPRT *);
 
 extern void	log_quiet(void);
-extern void	log_test_group(const char *, ...);
+extern void	log_format_testbus(void);
+extern void	log_test_group(const char *, const char *, ...);
 extern void	log_test(const char *, ...);
 extern void	log_fail(const char *, ...);
 extern void	log_warn(const char *, ...);

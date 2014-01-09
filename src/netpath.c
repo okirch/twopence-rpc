@@ -43,7 +43,7 @@ rpctest_verify_netpath_all(void)
 	const char *defpath[16];
 	int count;
 
-	log_test_group("Verify netpath functions");
+	log_test_group("netpath", "Verify netpath functions");
 
 	log_test("verify default netpath");
 	count = rpctest_expand_nettype("netpath", defpath, 16);

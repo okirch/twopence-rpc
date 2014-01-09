@@ -32,7 +32,7 @@ main(int argc, char **argv)
 	const char *opt_hostname = NULL;
 	int c;
 
-	while ((c = getopt(argc, argv, "Dh:q")) != EOF) {
+	while ((c = getopt(argc, argv, "Dh:qT")) != EOF) {
 		switch (c) {
 		case 'D':
 			opt_flags |= RPF_DISPUTED;
@@ -44,6 +44,10 @@ main(int argc, char **argv)
 
 		case 'q':
 			opt_flags |= RPF_QUIET;
+			break;
+
+		case 'T':
+			opt_flags |= RPF_TESTBUS;
 			break;
 
 		default:
@@ -60,6 +64,8 @@ main(int argc, char **argv)
 
 	if (opt_flags & RPF_QUIET)
 		log_quiet();
+	if (opt_flags & RPF_TESTBUS)
+		log_format_testbus();
 
 	if (!rpctest_init_nettypes())
 		return 1;

@@ -44,7 +44,7 @@ rpctest_verify_sockets_all(void)
 	struct bind_test *bt;
 	int am_root;
 
-	log_test_group("Verify socket functions");
+	log_test_group("socket", "Verify socket functions");
 
 	am_root = geteuid() == 0;
 

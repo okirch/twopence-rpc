@@ -69,7 +69,7 @@ rpctest_verify_clnt_funcs(void)
 	const struct sockaddr *srv_addr;
 	struct sockaddr_in my_addr;
 
-	log_test_group("Verify client functions");
+	log_test_group("client", "Verify client functions");
 
 	unsetenv("NETPATH");
 

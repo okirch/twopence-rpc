@@ -76,7 +76,7 @@ rpctest_verify_pmap_all(unsigned int flags)
 {
 	struct sockaddr_in sin;
 
-	log_test_group("Verify portmap client functions");
+	log_test_group("portmap", "Verify portmap client functions");
 
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;

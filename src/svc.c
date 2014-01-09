@@ -75,7 +75,7 @@ rpctest_verify_svc_register(void)
 {
 	const char **nettypes, **nt;
 
-	log_test_group("Verify service registration functions");
+	log_test_group("svcreg", "Verify service registration functions");
 
 	unsetenv("NETPATH");
 

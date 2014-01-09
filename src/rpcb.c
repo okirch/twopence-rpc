@@ -137,7 +137,7 @@ rpctest_verify_rpcb_all(unsigned int flags)
 	struct rpcb_conninfo *ci;
 	struct ifaddrs *ifa_list;
 
-	log_test_group("Verify rpcbind client functions");
+	log_test_group("rpcbind", "Verify rpcbind client functions");
 
 	ci = &conn_info[0];
 
