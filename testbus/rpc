@@ -251,6 +251,6 @@ testbus_group_begin libtirpc
 
 testbus_test_begin rpctest
 #rpc_run_client /bin/true
-rpc_run_server /usr/bin/rpctest
+rpc_run_server /usr/bin/rpctest -T
 
 testbus_group_finish
