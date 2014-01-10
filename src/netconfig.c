@@ -77,7 +77,7 @@ rpctest_verify_netconfig_all(void)
 	for (i = 0; __netconfig_data[i].nc_netid; ++i)
 		rpctest_verify_netconfig(&__netconfig_data[i]);
 
-	log_test("Verifying configured netids");
+	log_test_tagged("builtin", "Verifying configured netids");
 	handle = setnetconfig();
 	if (handle == NULL) {
 		log_fail("setnetconfig failed: %m");
@@ -102,8 +102,10 @@ rpctest_verify_netconfig_all(void)
 	}
 	endnetconfig(handle);
 
+	log_test_group("sockinfo", "Verify sockinfo functions");
 	rpctest_verify_sockinfo_all();
 
+	log_test_group("addrconv", "Verify uaddr2taddr/taddr2uaddr functions");
 	rpctest_verify_taddr2uaddr();
 }
 
@@ -114,7 +116,7 @@ rpctest_verify_netconfig(const struct netconfig *expect)
 	unsigned int fail = 0;
 	time_t now;
 
-	log_test("Verifying netconfig for netid <%s>", expect->nc_netid);
+	log_test_tagged(expect->nc_netid, "Verifying netconfig for netid <%s>", expect->nc_netid);
 
 	/* Note, we time the getnetconfigent() call - there's some crappy
 	 * old debug code in libtirpc that we should excise */
@@ -224,7 +226,7 @@ rpctest_verify_sockinfo_all(void)
 		struct netconfig *nconf;
 		struct __rpc_sockinfo si;
 
-		log_test("Verifying sockinfo for netid <%s>", st->si_netid);
+		log_test_tagged(st->si_netid, "Verifying sockinfo for netid <%s>", st->si_netid);
 		nconf = getnetconfigent(st->si_netid);
 		if (nconf == NULL) {
 			log_fail("Cannot get netconfig for <%s>", st->si_netid);
@@ -282,7 +284,7 @@ rpctest_verify_taddr2uaddr(void)
 		struct netbuf *nb = NULL;
 		char *result = NULL;
 
-		log_test("Verifying addr conversion for netid <%s>", aip->netid);
+		log_test_tagged(aip->netid, "Verifying addr conversion for netid <%s>", aip->netid);
 		nconf = getnetconfigent(aip->netid);
 		if (nconf == NULL) {
 			log_fail("Cannot get netconfig for <%s>", aip->netid);
