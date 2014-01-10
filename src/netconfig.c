@@ -46,9 +46,24 @@ static struct netconfig	__netconfig_data[] = {
 	{ NULL }
 };
 
+struct addr_info {
+	const char *	netid;
+	const char *	uaddr;
+};
+static struct addr_info	__uaddr_data[] = {
+	{ "udp",	"127.0.0.1.0.1"		},
+	{ "tcp",	"127.0.0.1.0.1"		},
+	{ "udp6",	"::1.0.1"		},
+	{ "tcp6",	"::1.0.1"		},
+	{ "local",	"/random/pathname"	},
+
+	{ NULL }
+};
+
 static void		rpctest_verify_netconfig(const struct netconfig *);
 static const char *	__netconfig_semantics_name(int);
 static void		rpctest_verify_sockinfo_all(void);
+static void		rpctest_verify_taddr2uaddr(void);
 
 void
 rpctest_verify_netconfig_all(void)
@@ -88,6 +103,8 @@ rpctest_verify_netconfig_all(void)
 	endnetconfig(handle);
 
 	rpctest_verify_sockinfo_all();
+
+	rpctest_verify_taddr2uaddr();
 }
 
 static void
@@ -241,6 +258,72 @@ rpctest_verify_sockinfo_all(void)
 {
 }
 #endif
+
+static void
+rpctest_destroy_netbuf(struct netbuf **nbp)
+{
+	struct netbuf *nb;
+
+	if ((nb = *nbp) == NULL)
+		return;
+
+	*nbp = NULL;
+	free(nb->buf);
+	free(nb);
+}
+
+void
+rpctest_verify_taddr2uaddr(void)
+{
+	struct addr_info *aip;
+	
+	for (aip = __uaddr_data; aip->netid; ++aip) {
+		struct netconfig *nconf;
+		struct netbuf *nb = NULL;
+		char *result = NULL;
+
+		log_test("Verifying addr conversion for netid <%s>", aip->netid);
+		nconf = getnetconfigent(aip->netid);
+		if (nconf == NULL) {
+			log_fail("Cannot get netconfig for <%s>", aip->netid);
+			goto next;
+		}
+
+		nb = uaddr2taddr(nconf, aip->uaddr);
+		if (nb == NULL) {
+			log_fail("uaddr2taddr(%s, %s): failed", aip->netid, aip->uaddr);
+			goto next;
+		}
+
+		result = taddr2uaddr(nconf, nb);
+		if (result == NULL) {
+			log_fail("uaddr2taddr(%s, %s): could not convert back result", aip->netid, aip->uaddr);
+			goto next;
+		}
+
+		if (strcmp(aip->uaddr, result)) {
+			log_fail("uaddr2taddr(%s, %s) not idempotent (returns \"%s\")", aip->netid, aip->uaddr, result);
+			goto next;
+		}
+
+		/* Pad netbuf */
+		nb->buf = realloc(nb->buf, nb->len + 8);
+		memset(nb->buf + nb->len, '.', 8);
+		nb->maxlen += 8;
+
+		free(result);
+		result = taddr2uaddr(nconf, nb);
+		if (result == NULL) {
+			log_fail("uaddr2taddr(%s, %s): could not convert back padded result", aip->netid, aip->uaddr);
+			goto next;
+		}
+
+next:
+		rpctest_destroy_netbuf(&nb);
+		if (result)
+			free(result);
+	}
+}
 
 static const char *
 __netconfig_semantics_name(int sem)
