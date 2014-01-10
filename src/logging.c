@@ -158,31 +158,50 @@ log_test_group(const char *groupname, const char *fmt, ...)
 	va_end(ap);
 }
 
-void
-log_test(const char *fmt, ...)
+static void
+__log_test_tagged(const char *tag, const char *fmt, va_list ap)
 {
-	static char namebuf[32];
-	va_list ap;
+	static char namebuf[128];
 
 	__log_test_finish(&test_case_name);
 
 	if (test_group_name) {
-		snprintf(namebuf, sizeof(namebuf), "%s.testcase%u", test_group_name, test_group_index);
+		snprintf(namebuf, sizeof(namebuf), "%s.%s", test_group_name, tag);
+		test_case_name = namebuf;
 	} else {
-		snprintf(namebuf, sizeof(namebuf), "testcase%u", test_group_index);
+		test_case_name = tag;
 	}
-	test_case_name = namebuf;
 
-	va_start(ap, fmt);
 	if (!opt_log_quiet) {
 		__log_test_begin_or_end(TEST_BEGIN, test_case_name, fmt, ap);
 	} else {
 		vsnprintf(test_msg, sizeof(test_msg), fmt, ap);
 	}
-	va_end(ap);
 
 	test_group_index++;
 	num_tests++;
+}
+
+void
+log_test_tagged(const char *tag, const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	__log_test_tagged(tag, fmt, ap);
+	va_end(ap);
+}
+
+void
+log_test(const char *fmt, ...)
+{
+	char tagname[32];
+	va_list ap;
+
+	va_start(ap, fmt);
+	snprintf(tagname, sizeof(tagname), "testcase%u", test_group_index);
+	__log_test_tagged(tagname, fmt, ap);
+	va_end(ap);
 }
 
 static void
