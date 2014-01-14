@@ -7,7 +7,7 @@ APPS	= rpc.squared square rpctest getaddr
 LINK	= -L. -lrpctest -ltirpc
 SCRIPTS	= testbus/rpc \
 	  testbus/rpc.functions \
-	  testbus/rpc.run
+	  testbus/rpc.conf
 
 SRVSRCS	= server_main.c
 CLTSRCS	= client_main.c
