@@ -61,6 +61,26 @@ if ! rpc_run_server $RPCINFO >/dev/null; then
 	exit 1
 fi
 
+testbus_test_begin verify-daemon-user
+rpcbind_pid=`rpc_run_server /sbin/pidofproc /sbin/rpcbind`
+if [ -z "$rpcbind_pid" ]; then
+	testbus_test_failure "Unable to determine the PID of rpcbind"
+else
+	set -- `rpc_run_server /bin/ps hup $rpcbind_pid`
+	username=$1
+	case $username in
+	rpc)
+		# All is well, process runs as user "rpc"
+		testbus_trace "rpcbind runs as user $username"
+		testbus_test_success
+		: ;;
+
+	*)
+		testbus_test_failure "rpcbind process runs as user $username, expected 'rpc'"
+		: ;;
+	esac
+fi
+
 testbus_group_finish
 
 ##################################################################
