@@ -29,10 +29,10 @@ static int	opt_flags;
 int
 main(int argc, char **argv)
 {
-	const char *opt_hostname = NULL;
+	const char *opt_hostname = NULL, *opt_testbus_prefix = NULL;
 	int c;
 
-	while ((c = getopt(argc, argv, "Dh:qT")) != EOF) {
+	while ((c = getopt(argc, argv, "Dh:qT:")) != EOF) {
 		switch (c) {
 		case 'D':
 			opt_flags |= RPF_DISPUTED;
@@ -47,6 +47,7 @@ main(int argc, char **argv)
 			break;
 
 		case 'T':
+			opt_testbus_prefix = optarg;
 			opt_flags |= RPF_TESTBUS;
 			break;
 
@@ -65,7 +66,7 @@ main(int argc, char **argv)
 	if (opt_flags & RPF_QUIET)
 		log_quiet();
 	if (opt_flags & RPF_TESTBUS)
-		log_format_testbus();
+		log_format_testbus(opt_testbus_prefix);
 
 	if (!rpctest_init_nettypes())
 		return 1;

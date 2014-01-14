@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <assert.h>
 #include "rpctest.h"
 
 static int		opt_log_quiet;
@@ -35,6 +36,7 @@ static char		test_group_msg[1024];
 static char		test_msg[1024];
 
 static unsigned int	test_group_index;
+static const char *	test_root_name;
 static const char *	test_group_name;
 static const char *	test_case_name;
 
@@ -49,8 +51,9 @@ log_quiet(void)
 }
 
 void
-log_format_testbus(void)
+log_format_testbus(const char *prefix)
 {
+	test_root_name = prefix;
 	opt_log_testbus = 1;
 }
 
@@ -161,12 +164,35 @@ log_test_group(const char *groupname, const char *fmt, ...)
 static void
 __log_test_tagged(const char *tag, const char *fmt, va_list ap)
 {
-	static char namebuf[128];
+	static char *namebuf = NULL;
+	const char *level[5];
+	unsigned int nlevels = 0;
 
 	__log_test_finish(&test_case_name);
 
-	if (test_group_name) {
-		snprintf(namebuf, sizeof(namebuf), "%s.%s", test_group_name, tag);
+	if (test_root_name)
+		level[nlevels++] = test_root_name;
+	if (test_group_name)
+		level[nlevels++] = test_group_name;
+	if (tag)
+		level[nlevels++] = tag;
+
+	if (nlevels > 1) {
+		unsigned int i = 0, len, off;
+
+		for (len = i = 0; i < nlevels; ++i)
+			len += strlen(level[i]) + 1;
+
+		namebuf = realloc(namebuf, len);
+
+		for (off = i = 0; i < nlevels; ++i) {
+			if (i)
+				namebuf[off++] = '.';
+			strcpy(namebuf + off, level[i]);
+			off += strlen(namebuf + off);
+		}
+		assert(off < len);
+
 		test_case_name = namebuf;
 	} else {
 		test_case_name = tag;

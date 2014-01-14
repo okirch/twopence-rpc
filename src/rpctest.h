@@ -42,7 +42,7 @@ extern unsigned int	num_warns;
 typedef void	rpc_program_fn_t(struct svc_req *, register SVCXPRT *);
 
 extern void	log_quiet(void);
-extern void	log_format_testbus(void);
+extern void	log_format_testbus(const char *prefix);
 extern void	log_test_group(const char *, const char *, ...);
 extern void	log_test(const char *, ...);
 extern void	log_test_tagged(const char *, const char *, ...);
