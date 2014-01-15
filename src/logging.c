@@ -53,7 +53,7 @@ log_quiet(void)
 void
 log_format_testbus(const char *prefix)
 {
-	test_root_name = prefix;
+	test_root_name = (prefix && *prefix)? prefix : NULL;
 	opt_log_testbus = 1;
 }
 
@@ -141,62 +141,50 @@ __log_test_finish(const char **namep)
 	}
 }
 
+static const char *
+log_name_combine(const char *prefix, const char *tag, char **save_p)
+{
+	char buffer[512];
+
+	if (prefix == NULL)
+		return tag;
+
+	snprintf(buffer, sizeof(buffer), "%s.%s", prefix, tag);
+	if (*save_p)
+		free(*save_p);
+	*save_p = strdup(buffer);
+	return *save_p;
+}
+
 void
 log_test_group(const char *groupname, const char *fmt, ...)
 {
+	static char *group_name_save = NULL;
 	va_list ap;
 
 	__log_test_finish(&test_case_name);
 	__log_test_finish(&test_group_name);
 
+	test_group_name = log_name_combine(test_root_name, groupname, &group_name_save);
+	test_group_index = 0;
+
 	va_start(ap, fmt);
 	if (!opt_log_quiet) {
-		__log_test_begin_or_end(TEST_BEGIN_GROUP, groupname, fmt, ap);
+		__log_test_begin_or_end(TEST_BEGIN_GROUP, test_group_name, fmt, ap);
 	} else {
 		vsnprintf(test_group_msg, sizeof(test_group_msg), fmt, ap);
 	}
-
-	test_group_name = groupname;
-	test_group_index = 0;
 	va_end(ap);
 }
 
 static void
 __log_test_tagged(const char *tag, const char *fmt, va_list ap)
 {
-	static char *namebuf = NULL;
-	const char *level[5];
-	unsigned int nlevels = 0;
+	static char *test_name_save = NULL;
 
 	__log_test_finish(&test_case_name);
 
-	if (test_root_name)
-		level[nlevels++] = test_root_name;
-	if (test_group_name)
-		level[nlevels++] = test_group_name;
-	if (tag)
-		level[nlevels++] = tag;
-
-	if (nlevels > 1) {
-		unsigned int i = 0, len, off;
-
-		for (len = i = 0; i < nlevels; ++i)
-			len += strlen(level[i]) + 1;
-
-		namebuf = realloc(namebuf, len);
-
-		for (off = i = 0; i < nlevels; ++i) {
-			if (i)
-				namebuf[off++] = '.';
-			strcpy(namebuf + off, level[i]);
-			off += strlen(namebuf + off);
-		}
-		assert(off < len);
-
-		test_case_name = namebuf;
-	} else {
-		test_case_name = tag;
-	}
+	test_case_name = log_name_combine(test_group_name? test_group_name : test_root_name, tag, &test_name_save);
 
 	if (!opt_log_quiet) {
 		__log_test_begin_or_end(TEST_BEGIN, test_case_name, fmt, ap);
@@ -228,6 +216,13 @@ log_test(const char *fmt, ...)
 	snprintf(tagname, sizeof(tagname), "testcase%u", test_group_index);
 	__log_test_tagged(tagname, fmt, ap);
 	va_end(ap);
+}
+
+void
+log_finish(void)
+{
+	__log_test_finish(&test_case_name);
+	__log_test_finish(&test_group_name);
 }
 
 static void
