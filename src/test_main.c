@@ -79,6 +79,8 @@ main(int argc, char **argv)
 	rpctest_verify_svc_register();
 	rpctest_verify_clnt_funcs();
 
+	log_finish();
+
 	printf("====\nSummary:\n"
 		"%4u tests\n"
 		"%4u failures\n"

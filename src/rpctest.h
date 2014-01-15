@@ -46,6 +46,7 @@ extern void	log_format_testbus(const char *prefix);
 extern void	log_test_group(const char *, const char *, ...);
 extern void	log_test(const char *, ...);
 extern void	log_test_tagged(const char *, const char *, ...);
+extern void	log_finish(void);
 extern void	log_fail(const char *, ...);
 extern void	log_warn(const char *, ...);
 extern void	log_trace(const char *, ...);
