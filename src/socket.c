@@ -51,7 +51,7 @@ rpctest_verify_sockets_all(void)
 	for (bt = __bind_tests; bt->netid; ++bt) {
 		int fd;
 
-		log_test("Trying to create socket for <%s>", bt->netid);
+		log_test_tagged(bt->netid, "Trying to create socket for <%s>", bt->netid);
 		fd = rpctest_make_socket(bt->netid);
 		if (fd < 0) {
 			log_fail("failed to create socket: %m");
