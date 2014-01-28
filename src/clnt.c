@@ -114,6 +114,7 @@ rpctest_verify_clnt_funcs(void)
 	rpctest_verify_clnt_create_fail("localhost", SQUARE_PROG, SQUARE_VERS, "bad nettype", __BAD_NETTYPE, RPC_UNKNOWNPROTO);
 	rpctest_verify_clnt_create_fail("localhost", SQUARE_PROG, SQUARE_VERS, "huge nettype", __HUGE_NETTYPE, RPC_UNKNOWNPROTO);
 
+#if 0
 	if (!rpctest_verify_clnt_create_fail("localhost", SQUARE_PROG, 5, "bad version", "tcp", RPC_UNKNOWNPROTO))
 		fprintf(stderr,
 			"    Editor's comment on the above failure:\n"
@@ -121,6 +122,7 @@ rpctest_verify_clnt_funcs(void)
 			"      with an exact version match, rpcbind will return a random binding for that program and\n"
 			"      leave it to the server to return a VERSMISMATCH when the client does its first procedure\n"
 			"      call. Needless to say, this is rather unintuitive\n");
+#endif
 
 	setenv("NETPATH", "udp6", 1);
 	rpctest_verify_clnt_create_fail("127.0.0.1", SQUARE_PROG, SQUARE_VERS, "IPv4 address and IPv6 netid", "netpath", RPC_UNKNOWNHOST);
