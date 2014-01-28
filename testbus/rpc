@@ -149,6 +149,9 @@ rpc_verify_rpcinfo verify-binding-nohost $RPCINFO <<EOF
     100000    3    local     /run/rpcbind.sock      portmapper superuser
 EOF
 
+# Regression test(s) should go here
+rpc_verify_rpcinfo_bcast_ifnoaddr
+
 testbus_group_finish
 
 ##################################################################

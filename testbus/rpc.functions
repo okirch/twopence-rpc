@@ -134,3 +134,25 @@ function rpc_verify_rpcinfo_broadcast {
 	cat $output
 	testbus_test_success
 }
+
+##################################################################
+# rpcinfo used to crash on interfacees with no address assigned to it
+##################################################################
+function rpc_verify_rpcinfo_bcast_ifnoaddr {
+
+	TUNCTL=/sbin/tunctl
+
+	testbus_test_begin rpcinfo-bcast-ifnoaddr
+	if ! __rpc_run_client /usr/bin/test -x $TUNCTL; then
+		testbus_test_failure "tunctl not found, cannot execute this test case"
+		return 1
+	fi
+
+	rpc_run_client $TUNCTL -t tun123
+	if ! rpc_run_client $RPCINFO -b portmapper 2; then
+		testbus_trace "portmapper failed, make sure you have fixed __rpc_getbroadifs"
+	fi
+
+	rpc_run_client $TUNCTL -d tun123
+	testbus_test_success
+}
