@@ -18,18 +18,18 @@ mkdir -p $TMPDIR
 ##################################################################
 testbus_group_begin $0
 
-RPC_SERVER=`testbus_claim_host --role rpc_server`
-test -n "$RPC_SERVER" || testbus_exit_fail "unable to claim server"
+if ! testbus_claim_node server; then
+	testbus_exit_fail "unable to claim server"
+fi
 
-RPC_CLIENT=`testbus_claim_host --role rpc_client`
-test -n "$RPC_CLIENT" || testbus_exit_fail "unable to claim client"
+if ! testbus_claim_node client; then
+	testbus_exit_fail "unable to claim client"
+fi
 
-RPC_SERVER_IP=`testbus_getenv $RPC_SERVER primary_ip`
-if [ -z "$RPC_SERVER_IP" ]; then
+if ! testbus_node_get_ipv4addr server RPC_SERVER_IP; then
 	testbus_exit_fail "No IP address for server"
 fi
-RPC_CLIENT_IP=`testbus_getenv $RPC_CLIENT primary_ip`
-if [ -z "$RPC_CLIENT_IP" ]; then
+if ! testbus_node_get_ipv4addr client RPC_CLIENT_IP; then
 	testbus_exit_fail "No IP address for client"
 fi
 
@@ -39,13 +39,13 @@ fi
 testbus_group_begin rpc-init
 
 testbus_test_begin start
-rpc_run_server /usr/bin/systemctl enable rpcbind.socket
-rpc_run_server /usr/bin/systemctl start rpcbind.socket
+rpc_run server /usr/bin/systemctl enable rpcbind.socket
+rpc_run server /usr/bin/systemctl start rpcbind.socket
 
 testbus_test_begin find-rpcinfo
 RPCINFO=
 for path in /sbin/rpcinfo /usr/sbin/rpcinfo /bin/rpcinfo /usr/bin/rpcinfo; do
-	if __rpc_run_server /usr/bin/test -f $path; then
+	if __rpc_run server /usr/bin/test -f $path; then
 		RPCINFO=$path
 		break
 	fi
@@ -56,17 +56,17 @@ if [ -z "$RPCINFO" ]; then
 fi
 
 testbus_test_begin verify-rpcinfo
-if ! rpc_run_server $RPCINFO >/dev/null; then
+if ! rpc_run server $RPCINFO >/dev/null; then
 	testbus_test_failure "$RPCINFO does not seem to work"
 	exit 1
 fi
 
 testbus_test_begin verify-daemon-user
-rpcbind_pid=`rpc_run_server /sbin/pidofproc /sbin/rpcbind`
+rpcbind_pid=`rpc_run server /sbin/pidofproc /sbin/rpcbind`
 if [ -z "$rpcbind_pid" ]; then
 	testbus_test_failure "Unable to determine the PID of rpcbind"
 else
-	set -- `rpc_run_server /bin/ps hup $rpcbind_pid`
+	set -- `rpc_run server /bin/ps hup $rpcbind_pid`
 	username=$1
 	case $username in
 	rpc)
@@ -89,39 +89,39 @@ testbus_group_finish
 testbus_group_begin basic-rpcinfo
 
 testbus_test_begin rpcinfo-v4
-if ! rpc_run_server $RPCINFO 127.0.0.1 >/dev/null; then
+if ! rpc_run server $RPCINFO 127.0.0.1 >/dev/null; then
 	testbus_test_failure "$RPCINFO 127.0.0.1 does not seem to work"
 fi
 
 testbus_test_begin rpcinfo-v6
-if ! rpc_run_server $RPCINFO ::1 >/dev/null; then
+if ! rpc_run server $RPCINFO ::1 >/dev/null; then
 	testbus_test_failure "$RPCINFO ::1 does not seem to work"
 fi
 
 testbus_test_begin rpcinfo-p
-rpc_run_server $RPCINFO -p >/dev/null
+rpc_run server $RPCINFO -p >/dev/null
 
 testbus_test_begin rpcinfo-p-v4
-rpc_run_server $RPCINFO -p 127.0.0.1 >/dev/null
+rpc_run server $RPCINFO -p 127.0.0.1 >/dev/null
 
 testbus_test_begin rpcinfo-p-v6
-rpc_run_server $RPCINFO -p ::1 >/dev/null
+rpc_run server $RPCINFO -p ::1 >/dev/null
 
 testbus_test_begin rpcinfo-m
-rpc_run_server $RPCINFO -m
+rpc_run server $RPCINFO -m
 
 testbus_test_begin rpcinfo-m-v4
-rpc_run_server $RPCINFO -m 127.0.0.1
+rpc_run server $RPCINFO -m 127.0.0.1
 
 testbus_test_begin rpcinfo-m-v6
-rpc_run_server $RPCINFO -m ::1
+rpc_run server $RPCINFO -m ::1
 
 for version in 2 3 4; do
 	testbus_test_begin rpcinfo-info-v$version
-	rpc_run_server $RPCINFO -T local ignoreme portmapper $version
+	rpc_run server $RPCINFO -T local ignoreme portmapper $version
 done
 
-rpc_verify_rpcinfo_null $RPC_SERVER udp 127.0.0.1 tcp 127.0.0.1 udp6 ::1 tcp6 ::1
+rpc_verify_rpcinfo_null server udp 127.0.0.1 tcp 127.0.0.1 udp6 ::1 tcp6 ::1
 
 rpc_verify_rpcinfo verify-listing-nohost $RPCINFO -p <<EOF
    program vers proto   port  service
@@ -160,23 +160,23 @@ testbus_group_finish
 testbus_group_begin remote-rpcinfo
 
 testbus_test_begin rpcinfo-v4
-if ! rpc_run_client $RPCINFO $RPC_SERVER_IP >/dev/null; then
+if ! rpc_run client $RPCINFO $RPC_SERVER_IP >/dev/null; then
 	testbus_test_failure "$RPCINFO $RPC_SERVER_IP does not seem to work"
 fi
 
 testbus_test_begin rpcinfo-p-v4
-if ! rpc_run_client $RPCINFO -p $RPC_SERVER_IP >/dev/null; then
+if ! rpc_run client $RPCINFO -p $RPC_SERVER_IP >/dev/null; then
 	testbus_test_failure "$RPCINFO -p $RPC_SERVER_IP does not seem to work"
 fi
 
 testbus_test_begin rpcinfo-m-v4
-if ! rpc_run_client $RPCINFO -m $RPC_SERVER_IP >/dev/null; then
+if ! rpc_run client $RPCINFO -m $RPC_SERVER_IP >/dev/null; then
 	testbus_test_failure "$RPCINFO -m $RPC_SERVER_IP does not seem to work"
 fi
 
 # Currently, we're not configuring any IPv6 addresses, so no remote
 # IPv6 testing
-rpc_verify_rpcinfo_null $RPC_CLIENT udp $RPC_SERVER_IP tcp $RPC_SERVER_IP
+rpc_verify_rpcinfo_null client udp $RPC_SERVER_IP tcp $RPC_SERVER_IP
 
 rpc_verify_rpcinfo_broadcast portmapper
 
@@ -192,22 +192,22 @@ SERVER_BIN=/usr/bin/rpc.squared
 CLIENT_BIN=/usr/bin/square
 
 testbus_test_begin start-server
-rpc_run_server $SERVER_BIN
+rpc_run server $SERVER_BIN
 
 
 testbus_test_begin test-client
-rpc_run_client $RPCINFO -T udp $RPC_SERVER_IP $SQUARE_RPC
-rpc_run_client $RPCINFO -T tcp $RPC_SERVER_IP $SQUARE_RPC
-rpc_run_client $CLIENT_BIN -h $RPC_SERVER_IP 10
+rpc_run client $RPCINFO -T udp $RPC_SERVER_IP $SQUARE_RPC
+rpc_run client $RPCINFO -T tcp $RPC_SERVER_IP $SQUARE_RPC
+rpc_run client $CLIENT_BIN -h $RPC_SERVER_IP 10
 
 rpc_verify_rpcinfo_broadcast $SQUARE_RPC
 
 testbus_test_begin stop-server
-rpc_run_server /sbin/killproc $SERVER_BIN
-rpc_run_server $RPCINFO -d $SQUARE_RPC 1
+rpc_run server /sbin/killproc $SERVER_BIN
+rpc_run server $RPCINFO -d $SQUARE_RPC 1
 
 testbus_test_begin verify-server-stopped
-if rpc_run_client $RPCINFO $RPC_SERVER_IP | grep -qs $SQUARE_RPC; then
+if rpc_run client $RPCINFO $RPC_SERVER_IP | grep -qs $SQUARE_RPC; then
 	testbus_test_failure "square service still registered with rpcbind"
 fi
 
@@ -227,7 +227,7 @@ SERVER_BIN=/usr/bin/rpc.squared
 GETADDR=/usr/bin/getaddr
 
 testbus_test_begin start-server
-rpc_run_server $SERVER_BIN
+rpc_run server $SERVER_BIN
 
 for option in "" "--no-netid" "--no-hint" "--use-getversaddr"; do
 
@@ -241,7 +241,7 @@ for option in "" "--no-netid" "--no-hint" "--use-getversaddr"; do
 		if [ "$option" = "--use-getversaddr" ]; then
 			extra_arg="1"
 		fi
-		if ! __rpc_run_client $GETADDR --hostname $RPC_SERVER_IP --netid $netid $option $SQUARE_RPC $extra_arg >$output; then
+		if ! __rpc_run client $GETADDR --hostname $RPC_SERVER_IP --netid $netid $option $SQUARE_RPC $extra_arg >$output; then
 			testbus_test_failure "getaddr invocation exited with error (status $?)"
 			cat $output
 			continue;
@@ -258,8 +258,8 @@ for option in "" "--no-netid" "--no-hint" "--use-getversaddr"; do
 done
 
 testbus_test_begin stop-server
-rpc_run_server /sbin/killproc $SERVER_BIN
-rpc_run_server $RPCINFO -d $SQUARE_RPC 1
+rpc_run server /sbin/killproc $SERVER_BIN
+rpc_run server $RPCINFO -d $SQUARE_RPC 1
 
 testbus_group_finish
 
@@ -273,7 +273,7 @@ testbus_group_finish
 testbus_group_begin libtirpc
 
 testbus_test_begin rpctest
-#rpc_run_client /bin/true
-rpc_run_server /usr/bin/rpctest -T `__testbus_testcase_name`
+#rpc_run client /bin/true
+rpc_run server /usr/bin/rpctest -T `__testbus_testcase_name`
 
 testbus_group_finish

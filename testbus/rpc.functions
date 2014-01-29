@@ -8,26 +8,20 @@
 # through a firstboot stage first.
 TESTBUS_CLAIM_TIMEOUT=240
 
-function __rpc_run_server {
-	testbus_run_command --host $RPC_SERVER "$@"
+function __rpc_run {
+	testbus_node_run "$@"
 }
 
-function rpc_run_server {
-	__rpc_run_server "$@" || testbus_test_failure
-}
+function rpc_run {
+	if ! testbus_node_run "$@"; then
+		local node
 
-function rpc_run_server_script {
-	rpc_run_server --host $RPC_SERVER --send-script "$@"
+		node=$1; shift
+		testbus_test_failure "Error running command on node <$node>: $*"
+		return 1
+	fi
+	return 0
 }
-
-function __rpc_run_client {
-	testbus_run_command --host $RPC_CLIENT "$@"
-}
-
-function rpc_run_client {
-	__rpc_run_client "$@" || testbus_test_failure
-}
-
 
 ##################################################################
 # Call rpcinfo and verify its output
@@ -53,7 +47,7 @@ function rpc_verify_rpcinfo {
 	cat - >$expected
 
 	received=`testbus_new_tempfile received`
-	rpc_run_server $command >$received || return 1
+	rpc_run server $command >$received || return 1
 
 	if [ -s $expected -a ! -s $received ]; then
 		testbus_test_failure "$command returned no output"
@@ -77,14 +71,14 @@ function rpc_verify_rpcinfo {
 
 ##################################################################
 # Run a series of rpcinfo NULL calls.
-# The arguments to this functions consist of pairs of
-# netid and host name/address
+# The arguments to this functions consist of the nickname of the
+# node to run this on, followed by pairs of netid and host name/address.
 ##################################################################
 function rpc_verify_rpcinfo_null {
 
-	local host
+	local node
 
-	host=$1; shift
+	node=$1; shift
 
 	while [ $# -gt 0 ]; do
 		local netid address output
@@ -96,7 +90,7 @@ function rpc_verify_rpcinfo_null {
 		testbus_test_begin rpcinfo-null-$netid
 
 		output=`testbus_new_tempfile output`
-		if ! testbus_run_command --host $host $RPCINFO -T $netid $address portmapper >$output; then
+		if ! testbus_node_run $node $RPCINFO -T $netid $address portmapper >$output; then
 			testbus_test_failure "$RPCINFO exited with status $?"
 			continue
 		fi
@@ -122,7 +116,7 @@ function rpc_verify_rpcinfo_broadcast {
 	testbus_test_begin rpcinfo-broadcast
 
 	output=`testbus_new_tempfile output`
-	if ! rpc_run_client $RPCINFO -b $rpcprog 2 >$output; then
+	if ! rpc_run client $RPCINFO -b $rpcprog 2 >$output; then
 		testbus_test_failure "$RPCINFO exited with status $?"
 		continue
 	fi
@@ -143,16 +137,16 @@ function rpc_verify_rpcinfo_bcast_ifnoaddr {
 	TUNCTL=/sbin/tunctl
 
 	testbus_test_begin rpcinfo-bcast-ifnoaddr
-	if ! __rpc_run_client /usr/bin/test -x $TUNCTL; then
+	if ! __rpc_run client /usr/bin/test -x $TUNCTL; then
 		testbus_test_failure "tunctl not found, cannot execute this test case"
 		return 1
 	fi
 
-	rpc_run_client $TUNCTL -t tun123
-	if ! rpc_run_client $RPCINFO -b portmapper 2; then
+	rpc_run client $TUNCTL -t tun123
+	if ! rpc_run client $RPCINFO -b portmapper 2; then
 		testbus_trace "portmapper failed, make sure you have fixed __rpc_getbroadifs"
 	fi
 
-	rpc_run_client $TUNCTL -d tun123
+	rpc_run client $TUNCTL -d tun123
 	testbus_test_success
 }
