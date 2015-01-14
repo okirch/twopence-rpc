@@ -8,6 +8,7 @@
 import sys
 import suselog
 import twopence
+import susetest
 
 square_server_bin	= "/usr/sbin/rpc.squared"
 square_client_bin	= "/usr/bin/square"
@@ -57,7 +58,7 @@ def setup():
 
 	journal.beginGroup("setup")
 
-	config = twopence.Config()
+	config = susetest.Config()
 	client = config.target("client")
 	server = config.target("server")
 
