@@ -1,12 +1,12 @@
-testbus-rpc
+twopence-rpc
 ===========
 
-Scripts for testing libtirpc, rpcbind and utilities with testbus.
+Scripts for testing libtirpc, rpcbind and utilities with twopence.
 
 
-testbus/
+twopence/
 	This directory contains the scripts needed to run these
-	tests under testbus
+	tests under twopence
 
 src/
 	This contains the C utilities that come with this test

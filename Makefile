@@ -1,13 +1,12 @@
 
 bindir	= /usr/bin
-testdir	= /usr/share/testbus/suites
+testdir	= /usr/share/twopence/suites
 
 CFLAGS	= -Wall -O2 -I/usr/include/tirpc -I.
 APPS	= rpc.squared square rpctest getaddr
 LINK	= -L. -lrpctest -ltirpc
-SCRIPTS	= testbus/rpc \
-	  testbus/rpc.functions \
-	  testbus/rpc.conf
+SCRIPTS	= twopence/rpc \
+	  twopence/rpc.conf
 
 SRVSRCS	= server_main.c
 CLTSRCS	= client_main.c

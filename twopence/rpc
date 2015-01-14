@@ -1,0 +1,428 @@
+#!/usr/bin/python
+#
+# Test program to verify that rpcinfo and rpcbind function properly
+#
+# Copyright (C) 2015 Olaf Kirch <okir@suse.de>
+#
+
+import sys
+import suselog
+import twopence
+
+square_server_bin	= "/usr/sbin/rpc.squared"
+square_client_bin	= "/usr/bin/square"
+square_rpc_prog		= 202020;
+getaddr_bin		= "/usr/bin/getaddr"
+
+#
+# This is what the listing of standard RPC services
+# should contain when queried via the portmapper protocol
+#
+rpcbind_listing_portmapper = "\
+   program vers proto   port  service\n\
+    100000    4   tcp    111  portmapper\n\
+    100000    3   tcp    111  portmapper\n\
+    100000    2   tcp    111  portmapper\n\
+    100000    4   udp    111  portmapper\n\
+    100000    3   udp    111  portmapper\n\
+    100000    2   udp    111  portmapper\n\
+"
+#
+# This is what the listing of standard RPC services
+# should contain when queried via the rpcbind protocol locally
+#
+rpcbind_listing_rpcbind = "\
+   program version netid     address                service    owner\n\
+    100000    4    tcp6      ::.0.111               portmapper superuser\n\
+    100000    3    tcp6      ::.0.111               portmapper superuser\n\
+    100000    4    udp6      ::.0.111               portmapper superuser\n\
+    100000    3    udp6      ::.0.111               portmapper superuser\n\
+    100000    4    tcp       0.0.0.0.0.111          portmapper superuser\n\
+    100000    3    tcp       0.0.0.0.0.111          portmapper superuser\n\
+    100000    2    tcp       0.0.0.0.0.111          portmapper superuser\n\
+    100000    4    udp       0.0.0.0.0.111          portmapper superuser\n\
+    100000    3    udp       0.0.0.0.0.111          portmapper superuser\n\
+    100000    2    udp       0.0.0.0.0.111          portmapper superuser\n\
+    100000    4    local     /var/run/rpcbind.sock  portmapper superuser\n\
+    100000    3    local     /var/run/rpcbind.sock  portmapper superuser\n\
+"
+
+journal = suselog.Journal("rpc", path = "report.xml");
+client = None
+server = None
+rpcinfo = None
+
+def setup():
+	global client, server
+
+	journal.beginGroup("setup")
+
+	config = twopence.Config()
+	client = config.target("client")
+	server = config.target("server")
+
+	if not client.ipaddr:
+		journal.fatal("No IP address set for client");
+	if not server.ipaddr:
+		journal.fatal("No IP address set for server");
+
+def __rpc_run(target, command):
+	cmd = twopence.Command(command)
+
+	journal.info(target.name + ": " + cmd.commandline)
+	status = target.run(cmd)
+	if not status:
+		journal.info("command failed: " + status.message)
+
+	journal.recordStdout(status.stdout);
+	if status.stdout != status.stderr:
+		journal.recordStderr(status.stderr);
+	
+	return status
+
+def log_buffered_output(desc, data):
+	# data is usually a bytearray
+	if len(data) == 0:
+		return
+
+	journal.failure(desc + ":")
+	for line in str(data).split("\n"):
+		journal.failure(line);
+
+def rpc_run(target, command):
+	status = __rpc_run(target, command)
+	if not(status):
+		journal.failure("command \"" + command + "\" failed: " + status.message);
+	return status
+
+##################################################################
+# Initialize RPC tests and run some initial sanity checks
+##################################################################
+def rpc_init():
+	journal.beginGroup(None, "enable rpcbind")
+	journal.beginTest(None, "enable rpcbind on server")
+	rpc_run(server, "/usr/bin/systemctl enable rpcbind.socket")
+	rpc_run(server, "/usr/bin/systemctl start rpcbind.socket")
+	journal.finishGroup()
+
+##################################################################
+# Try to locate the rpcinfo utility
+##################################################################
+def rpcinfo_find():
+	global rpcinfo
+
+	journal.beginGroup(None, "make sure rpcinfo works")
+	journal.beginTest("rpcinfo-find", "Find rpcinfo utility")
+	for path in ['/sbin/rpcinfo', '/usr/sbin/rpcinfo', '/bin/rpcinfo', '/usr/bin/rpcinfo']:
+		if __rpc_run(server, "/usr/bin/test -f " + path):
+			rpcinfo = path
+			break
+
+	print "rpcinfo is", rpcinfo
+
+	if not rpcinfo:
+		journal.fatal("unable to find rpcinfo utility")
+	journal.success("rpcifo is at " + rpcinfo)
+
+	journal.beginTest("rpcinfo-validate", "Verify rpcinfo")
+	if not(run_rpcinfo(server, ">/dev/null")):
+		journal.fatal("rpcinfo doesn't seem to work properly")
+
+	journal.beginTest("rpcbind-daemonuser", "Make sure rpcinfo doesn't run as root")
+	status = __rpc_run(server, "/sbin/pidofproc /sbin/rpcbind");
+	if not(status) or len(status.stdout) == 0:
+		journal.failure("unable to obtain pid of rpcbind process");
+	else:
+		pid = str(status.stdout).strip();
+		status = rpc_run(server, "/bin/ps hup " + pid);
+		if status and len(status.stdout):
+			# the first column of the ps output is the user name
+			user = str(status.stdout).split(None, 1)[0]
+			if user == "rpc":
+				journal.success("rpcbind runs as user " + user)
+			else:
+				journal.failure("rpcbind runs as user " + user + ", expected \"rpc\"")
+
+	journal.finishGroup()
+
+
+def run_rpcinfo(target, args):
+	if not rpcinfo:
+		journal.fatal("run_rpcinfo: rpcinfo path not defined")
+
+	return rpc_run(target, rpcinfo + " " + args)
+
+##################################################################
+# Basic rpcinfo functionality
+##################################################################
+def rpcinfo_basic_test(on_host, option, ipaddr):
+	command = rpcinfo;
+	if option:
+		command += " " + option;
+	if ipaddr:
+		command += " " + ipaddr;
+
+	journal.beginTest(None, command);
+	if rpc_run(on_host, command):
+		journal.success();
+
+def rpcinfo_null_call_test(on_host, netid, ipaddr, rpc_prog = None):
+	if not rpc_prog:
+		rpc_prog = "portmapper";
+
+	command = "%s -T %s %s %s" % (rpcinfo, netid, ipaddr, rpc_prog)
+
+	journal.beginTest(None, command);
+	status = __rpc_run(on_host, command)
+	if not(status):
+		journal.failure(command + ": " + status.message);
+		return
+
+	if len(status.stdout) == 0:
+		journal.failure(command + ": succeeded, but did not generate any output")
+		return
+
+	journal.success();
+
+def rpcinfo_broadcast_test(on_host, rpc_prog, rpc_vers):
+	command = "%s -b %s %d" % (rpcinfo, rpc_prog, rpc_vers);
+
+	journal.beginTest(None, command);
+	status = __rpc_run(on_host, command)
+	if not(status):
+		journal.failure(command + ": " + status.message);
+		return
+
+	if len(status.stdout) == 0:
+		journal.failure(command + ": succeeded, but did not generate any output")
+		return
+
+	journal.success();
+
+def match_listing(expected, got):
+	got_lines = []
+	for line in got.split("\n"):
+		got_lines.append(line.split())
+	for line in expected.split("\n"):
+		if line and line.split() not in got_lines:
+			journal.failure("listing lacks line: " + line.strip())
+			return 0
+		journal.info("found: " + line)
+
+	return 1
+
+
+def rpcinfo_verify_listing(on_host, option, expected):
+	command = rpcinfo;
+	if option:
+		command += " " + option;
+
+	journal.beginTest(None, command);
+	status = rpc_run(on_host, command)
+	if status and match_listing(expected, str(status.stdout)):
+		journal.success();
+
+def rpcinfo_basic():
+	journal.beginGroup("basic-rpcinfo", "basic rpcinfo tests")
+	rpcinfo_basic_test(server, None, "127.0.0.1")
+	rpcinfo_basic_test(server, None, "::1")
+	rpcinfo_basic_test(server, "-p", None)
+	rpcinfo_basic_test(server, "-p", "127.0.0.1")
+	rpcinfo_basic_test(server, "-p", "::1")
+	rpcinfo_basic_test(server, "-m", None)
+	rpcinfo_basic_test(server, "-m", "127.0.0.1")
+	rpcinfo_basic_test(server, "-m", "::1")
+
+	for version in range(2, 5):
+		journal.beginTest("rpcinfo-info-v%d" % version);
+		run_rpcinfo(server, "-T local ignoreme portmapper %d" % version)
+
+	rpcinfo_null_call_test(server, "udp", "127.0.0.1");
+	rpcinfo_null_call_test(server, "tcp", "127.0.0.1");
+	rpcinfo_null_call_test(server, "udp6", "::1");
+	rpcinfo_null_call_test(server, "tcp6", "::1");
+
+	# check the rpcinfo output to make sure that all interesting services
+	# are defined
+	rpcinfo_verify_listing(server, "-p", rpcbind_listing_portmapper);
+	rpcinfo_verify_listing(server, None, rpcbind_listing_rpcbind);
+
+	journal.finishGroup()
+
+##################################################################
+# rpcinfo used to crash on interfacees with no address assigned to it
+##################################################################
+def rpc_verify_rpcinfo_bcast_ifnoaddr():
+
+	tunctl = "/sbin/tunctl"
+
+	journal.beginTest("rpcinfo-bcast-ifnoaddr", "verify that rpcinfo doesn't crash on interfaces w/o address")
+	if not(__rpc_run(client, "/usr/bin/test -x " + tunctl)):
+		journal.error("tunctl not found, cannot execute this test case");
+		return;
+
+	__rpc_run(client, tunctl + " -t tun123");
+	if not run_rpcinfo(client, "-b portmapper 2"):
+		journal.failure("portmapper failed, make sure you have fixed __rpc_getbroadifs")
+		__rpc_run(client, tunctl + " -d tun123")
+		return
+
+	__rpc_run(client, tunctl + " -d tun123")
+	journal.success()
+
+def rpc_regressions():
+	journal.beginGroup("rpcinfo-regressions");
+	rpc_verify_rpcinfo_bcast_ifnoaddr()
+	journal.finishGroup()
+
+##################################################################
+# From the client system, talk to rpcbind on the server
+##################################################################
+def rpcinfo_remote_addr(dstaddr):
+	rpcinfo_basic_test(client, None, dstaddr)
+	rpcinfo_basic_test(client, "-p", dstaddr)
+	rpcinfo_basic_test(client, "-m", dstaddr)
+
+
+def rpcinfo_remote():
+	journal.beginGroup("rpcinfo-remote");
+	rpcinfo_remote_addr(server.ipaddr)
+	rpcinfo_null_call_test(client, "udp", server.ipaddr);
+	rpcinfo_null_call_test(client, "tcp", server.ipaddr);
+	
+	ipv6addr = server.property("ip6addr")
+	if (ipv6addr):
+		rpcinfo_remote_addr(ipv6addr);
+		rpcinfo_null_call_test(client, "udp6", ipv6addr);
+		rpcinfo_null_call_test(client, "tcp6", ipv6addr);
+
+	rpcinfo_broadcast_test(client, "portmapper", 2)
+
+	journal.finishGroup()
+
+##################################################################
+# Use the rpc square service (which computes the square of
+# a number) and exercise some functions of the rpc library
+##################################################################
+def square_server_start():
+	journal.beginTest(None, "start the square server");
+	if rpc_run(server, square_server_bin):
+		journal.success()
+
+def square_server_stop():
+	journal.beginTest(None, "stop the square server")
+	rpc_run(server, "/sbin/killproc " + square_server_bin);
+	rpc_run(server, "%s -d %s 1" % (rpcinfo, square_rpc_prog));
+
+def square_server_verify_stopped():
+	journal.beginTest(None, "verify that the server was stopped")
+	status = rpc_run(client, "%s %s" % (rpcinfo, server.ipaddr))
+	if not status:
+		return
+
+	result = str(status.stdout)
+	if str(square_rpc_prog) in result:
+		journal.failure("square service still registered with rpcbind")
+		return
+	
+	journal.success()
+
+def rpc_square():
+	journal.beginGroup("rpc-square");
+
+	square_server_start()
+
+	rpcinfo_null_call_test(client, "udp", server.ipaddr, square_rpc_prog)
+	rpcinfo_null_call_test(client, "tcp", server.ipaddr, square_rpc_prog)
+
+	ipv6addr = server.property("ip6addr")
+	if (ipv6addr):
+		rpcinfo_null_call_test(client, "udp6", ip6addr, square_rpc_prog)
+		rpcinfo_null_call_test(client, "tcp6", ip6addr, square_rpc_prog)
+
+	journal.beginTest(None, "test the square client")
+	status = rpc_run(client, "%s -h %s 11" % (square_client_bin, server.ipaddr));
+	if status:
+		if len(status.stdout) == 0:
+			journal.failure("square command returned no output")
+		else:
+			# the square program prints out something like
+			#       11^2 = 121\n
+			# we need the last word of this.
+			result = str(status.stdout).split()[-1];
+			if result != "121":
+				journal.failure("unexpected result from square server, expected 121, got \"%s\"" % result);
+				log_buffered_output("standard output", status.stdout);
+			else:
+				journal.success()
+
+	square_server_stop()
+	square_server_verify_stopped()
+
+	# TBD:
+	# Export NETPATH=udp, start rpc.squared and make sure it didn't register a tcp transport
+	# Export NETPATH=tcp, start rpc.squared and make sure it didn't register a udp transport
+	# Currently, twopence doesn't support environment variables...
+
+	journal.finishGroup()
+
+##################################################################
+# Verify all sorts of getaddr functionality
+##################################################################
+def rpc_getaddr():
+	journal.beginGroup("rpc-getaddr");
+
+	square_server_start()
+
+	for option in ["", "--no-netid", "--no-hint", "--use-getversaddr"]:
+		for netid in ["udp", "tcp", "udp6", "tcp6"]:
+			if netid == "udp" or netid == "tcp":
+				dstaddr = server.property("ipaddr")
+			else:
+				dstaddr = server.property("ip6addr")
+
+			if not dstaddr:
+				continue
+
+			command = "%s --hostname %s --netid %s %s %s" % (getaddr_bin, dstaddr, netid, option, square_rpc_prog);
+			if option == "--use-getversaddr":
+				# When using getversaddr, we need to specify the rpc version, too
+				command += " 1"
+
+			journal.beginTest("getaddr-%s%s" % (netid, option), command);
+			status = __rpc_run(client, command)
+			if not status:
+				journal.failure("command failed: " + status.message);
+				continue
+
+			if len(status.stdout) == 0:
+				journal.failure("getaddr command returned no output")
+				continue
+
+			if "NOREG" in str(status.stdout):
+				journal.failure("getaddr invocation returned NOREG - program not registered?")
+				continue
+
+			journal.success()
+
+	square_server_stop()
+
+	journal.finishGroup()
+
+def main():
+	setup()
+	rpc_init()
+	rpcinfo_find()
+	rpcinfo_basic()
+	rpc_regressions()
+	rpcinfo_remote()
+	rpc_square()
+	rpc_getaddr()
+
+	# TODO: run test rpctest set of unit tests over the network.
+	# This test program generates its own unit test log, which we
+	# would need to merge into our own journal
+
+	journal.writeReport()
+
+main()
