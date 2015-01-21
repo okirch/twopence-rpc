@@ -28,6 +28,7 @@
 #include <string.h>
 #include <syslog.h>
 #include <assert.h>
+#include <time.h>
 #include "rpctest.h"
 
 static int		opt_log_quiet;
@@ -58,40 +59,52 @@ log_format_testbus(const char *prefix)
 }
 
 enum {
-	TEST_BEGIN_GROUP, TEST_BEGIN, TEST_SUCCESS, TEST_FAILURE, TEST_WARNING,
+	TEST_BEGIN_GROUP, TEST_END_GROUP,
+	TEST_BEGIN, TEST_SUCCESS, TEST_FAILURE, TEST_WARNING,
 };
 
 static void
 __log_test_begin_or_end(int type, const char *name, const char *extra_fmt, va_list extra_ap)
 {
 	if (opt_log_testbus) {
+		struct timeval current_time;
+		char timestamp[24];
+
+		gettimeofday(&current_time, NULL);
+		strftime(timestamp, 20, "%Y-%m-%dT%H:%M:%S", gmtime(&current_time.tv_sec));
+		sprintf(timestamp + 19, ".%03d", (int) current_time.tv_usec / 1000);
+
 		switch (type) {
 		case TEST_BEGIN_GROUP:
+			fprintf(stderr, "###junit testsuite time=\"%s\" id=\"%s\"", timestamp, name);
+			break;
+
+		case TEST_END_GROUP:
+			fprintf(stderr, "###junit endsuite time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
+			break;
+
 		case TEST_BEGIN:
-			fprintf(stderr, "### TESTBEGIN %s", name);
+			fprintf(stderr, "###junit testcase time=\"%s\" id=\"%s\"", timestamp, name);
 			break;
 
 		case TEST_SUCCESS:
-			fprintf(stderr, "### TESTRESULT %s: SUCCESS", name);
+			fprintf(stderr, "###junit success time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
 			break;
 
 		case TEST_FAILURE:
-			fprintf(stderr, "### TESTRESULT %s: FAILED", name);
+		case TEST_WARNING:									// no real support for warnings in JUnit XML
+			fprintf(stderr, "###junit failure time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
 			break;
 
-		case TEST_WARNING:
-			fprintf(stderr, "### TESTRESULT %s: WARN", name);
-			break;
-
-		default:
-			fprintf(stderr, "### INTERNALERROR");
+		default:										// JUnit XML has real support for internal errors
+			fprintf(stderr, "###junit error time=\"%s\"", timestamp);
 			break;
 		}
 
 		if (extra_fmt) {
-			fprintf(stderr, " (");
+			fprintf(stderr, " text=\"");
 			vfprintf(stderr, extra_fmt, extra_ap);
-			fprintf(stderr, ")");
+			fprintf(stderr, "\"");
 		}
 		fprintf(stderr, "\n");
 	} else {
@@ -102,6 +115,10 @@ __log_test_begin_or_end(int type, const char *name, const char *extra_fmt, va_li
 				vfprintf(stderr, extra_fmt, extra_ap);
 			fprintf(stderr, " === \n");
 			break;
+
+		case TEST_END_GROUP:
+			/* Nothing */
+			return;
 
 		case TEST_BEGIN:
 			fprintf(stderr, "TEST: ");
@@ -141,6 +158,15 @@ __log_test_finish(const char **namep)
 	}
 }
 
+static void
+__log_group_finish(const char **namep)
+{
+	if (*namep != NULL) {
+		__log_test_begin_or_end(TEST_END_GROUP, *namep, NULL, NULL);
+		*namep = NULL;
+	}
+}
+
 static const char *
 log_name_combine(const char *prefix, const char *tag, char **save_p)
 {
@@ -163,7 +189,7 @@ log_test_group(const char *groupname, const char *fmt, ...)
 	va_list ap;
 
 	__log_test_finish(&test_case_name);
-	__log_test_finish(&test_group_name);
+	__log_group_finish(&test_group_name);
 
 	test_group_name = log_name_combine(test_root_name, groupname, &group_name_save);
 	test_group_index = 0;
@@ -222,7 +248,7 @@ void
 log_finish(void)
 {
 	__log_test_finish(&test_case_name);
-	__log_test_finish(&test_group_name);
+	__log_group_finish(&test_group_name);
 }
 
 static void
