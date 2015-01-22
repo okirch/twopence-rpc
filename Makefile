@@ -5,8 +5,6 @@ testdir	= /usr/share/twopence/suites
 CFLAGS	= -Wall -O2 -I/usr/include/tirpc -I.
 APPS	= rpc.squared square rpctest getaddr
 LINK	= -L. -lrpctest -ltirpc
-SCRIPTS	= twopence/rpc \
-	  twopence/susetest.conf.in
 
 SRVSRCS	= server_main.c
 CLTSRCS	= client_main.c
@@ -43,8 +41,9 @@ all: $(APPS)
 install: $(APPS)
 	install -m 755 -d $(DESTDIR)$(bindir)
 	install -m 555 $(APPS) $(DESTDIR)$(bindir)
-	install -m 755 -d $(DESTDIR)$(testdir)
-	install -m 555 $(SCRIPTS) $(DESTDIR)$(testdir)
+	install -m 755 -d $(DESTDIR)$(testdir)/rpc
+	install -m 555 twopence/rpc $(DESTDIR)$(testdir)/rpc/run
+	install -m 444 twopence/susetest.conf.in $(DESTDIR)$(testdir)/rpc
 
 clean:
 	rm -rf obj $(APPS) $(LIB) $(GENFILES)
