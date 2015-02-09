@@ -13,10 +13,10 @@
 # tunctl	for /sbin/tunctl
 #
 node		client
-packages	rpcbind tunctl
+attr packages	rpcbind tunctl
 
 # We also need a server
 # We want the following packages to be installed:
 # rpcbind	for /sbin/rpcbind and its systemd unit files
 node		server
-packages	rpcbind
+attr packages	rpcbind
