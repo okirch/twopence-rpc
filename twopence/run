@@ -44,8 +44,8 @@ rpcbind_listing_rpcbind = "\
     100000    4    udp       0.0.0.0.0.111          portmapper superuser\n\
     100000    3    udp       0.0.0.0.0.111          portmapper superuser\n\
     100000    2    udp       0.0.0.0.0.111          portmapper superuser\n\
-    100000    4    local     /var/run/rpcbind.sock  portmapper superuser\n\
-    100000    3    local     /var/run/rpcbind.sock  portmapper superuser\n\
+    100000    4    local     *                      portmapper superuser\n\
+    100000    3    local     *                      portmapper superuser\n\
 "
 
 journal = None
@@ -212,14 +212,42 @@ def match_listing(expected, got):
 	got_lines = []
 	for line in got.split("\n"):
 		got_lines.append(line.split())
-	for line in expected.split("\n"):
-		if line and line.split() not in got_lines:
-			journal.failure("listing lacks line: " + line.strip())
-			return 0
-		journal.info("found: " + line)
+	for want_line in expected.split("\n"):
+		if not want_line:
+			continue
+		line_words = want_line.split()
+		if line_words in got_lines:
+			journal.info("found: " + want_line)
+			continue
+
+		# Okay, we didn't find the line verbatim.
+		# See if there are any wildcard words in there
+		if "*" in line_words and match_one_line_wildcard(want_line, got_lines):
+			continue
+
+		journal.failure("listing lacks line: " + want_line.strip())
+		return 0
 
 	return 1
 
+def match_one_line_wildcard(want_line, got_lines):
+	want_words = want_line.split()
+	for got_words in got_lines:
+		if len(got_words) != len(want_words):
+			continue
+
+		match = True
+		for i in range(len(want_words)):
+			if want_words[i] != "*" and want_words[i] != got_words[i]:
+				match = False
+				break
+
+		if match:
+			journal.info("found: " + want_line)
+			journal.info("match: " + " ".join(got_words))
+			return True
+	
+	return False
 
 def rpcinfo_verify_listing(on_host, option, expected):
 	command = rpcinfo;
