@@ -48,7 +48,7 @@ rpcbind_listing_rpcbind = "\
     100000    3    local     /var/run/rpcbind.sock  portmapper superuser\n\
 "
 
-journal = suselog.Journal("rpc", path = "report.xml");
+journal = None
 client = None
 server = None
 rpcinfo = None
@@ -56,9 +56,14 @@ rpcinfo = None
 def setup():
 	global client, server
 
+	config = susetest.Config()
+	reportPath = config.value("report")
+	if not reportPath:
+		reportPath = "report.xml"
+	journal = suselog.Journal("rpc", path = reportPath);
+
 	journal.beginGroup("setup")
 
-	config = susetest.Config()
 	client = config.target("client")
 	server = config.target("server")
 
@@ -66,6 +71,9 @@ def setup():
 		journal.fatal("No IP address set for client");
 	if not server.ipaddr:
 		journal.fatal("No IP address set for server");
+
+	journal.info("square server: " + square_server_bin)
+	journal.info("square client: " + square_client_bin)
 
 def __rpc_run(target, command):
 	cmd = twopence.Command(command)
