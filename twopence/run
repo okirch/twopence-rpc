@@ -54,7 +54,7 @@ server = None
 rpcinfo = None
 
 def setup():
-	global client, server
+	global client, server, journal
 
 	config = susetest.Config()
 	reportPath = config.value("report")
