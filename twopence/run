@@ -10,7 +10,7 @@ import suselog
 import twopence
 import susetest
 
-square_server_bin	= "/usr/sbin/rpc.squared"
+square_server_bin	= "/usr/bin/rpc.squared"
 square_client_bin	= "/usr/bin/square"
 square_rpc_prog		= 202020;
 getaddr_bin		= "/usr/bin/getaddr"
