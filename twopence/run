@@ -105,15 +105,22 @@ def rpc_run(target, command):
 	return status
 
 ##################################################################
-# Start rpcbind and run some initial sanity checks
+# Start rpcbind and run some sanity checks
 ##################################################################
-def rpcbind_basic():
-	journal.beginGroup("rpcbind", "enable rpcbind")
+def rpcbind_start():
+	journal.beginGroup("rpcbind-start", "enable rpcbind")
 
 	journal.beginTest("start", "enable rpcbind on server")
 	rpc_run(server, "/usr/bin/systemctl enable rpcbind.socket")
 	rpc_run(server, "/usr/bin/systemctl start rpcbind.socket")
+	journal.finishGroup()
 
+def rpcbind_basic():
+	journal.beginGroup("rpcbind-misc", "Various rpcbind checks")
+
+	# Note: this test needs to run after some rpcinfo based tests
+	# that ensure that the rpcbind process has actully been started.
+	# Right now, we rely on systemd's socket activation.
 	journal.beginTest("daemonuser", "Make sure rpcbind doesn't run as root")
 	status = __rpc_run(server, "/sbin/pidofproc /sbin/rpcbind");
 	if not(status) or len(status.stdout) == 0:
@@ -450,8 +457,9 @@ def rpc_getaddr():
 
 def main():
 	setup()
-	rpcbind_basic()
+	rpcbind_start()
 	rpcinfo_find()
+	rpcbind_basic()
 	rpcinfo_basic()
 	rpc_regressions()
 	rpcinfo_remote()
