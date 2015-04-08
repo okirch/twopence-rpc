@@ -273,7 +273,7 @@ def rpcinfo_basic():
 	rpcinfo_basic_test(server, "-m", "::1")
 
 	for version in range(2, 5):
-		journal.beginTest("rpcinfo-info-v%d" % version);
+		journal.beginTest("info-v%d" % version);
 		run_rpcinfo(server, "-T local ignoreme portmapper %d" % version)
 
 	rpcinfo_null_call_test(server, "udp", "127.0.0.1");
@@ -295,7 +295,7 @@ def rpc_verify_rpcinfo_bcast_ifnoaddr():
 
 	tunctl = "/sbin/tunctl"
 
-	journal.beginTest("rpcinfo-bcast-ifnoaddr", "verify that rpcinfo doesn't crash on interfaces w/o address")
+	journal.beginTest("bcast-ifnoaddr", "verify that rpcinfo doesn't crash on interfaces w/o address")
 	if not(__rpc_run(client, "/usr/bin/test -x " + tunctl)):
 		journal.error("tunctl not found, cannot execute this test case");
 		return;
@@ -428,7 +428,7 @@ def rpc_getaddr():
 				# When using getversaddr, we need to specify the rpc version, too
 				command += " 1"
 
-			journal.beginTest("getaddr-%s%s" % (netid, option), command);
+			journal.beginTest(None, command);
 			status = __rpc_run(client, command)
 			if not status:
 				journal.failure("command failed: " + status.message);
