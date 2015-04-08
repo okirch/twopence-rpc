@@ -105,39 +105,16 @@ def rpc_run(target, command):
 	return status
 
 ##################################################################
-# Initialize RPC tests and run some initial sanity checks
+# Start rpcbind and run some initial sanity checks
 ##################################################################
-def rpc_init():
-	journal.beginGroup(None, "enable rpcbind")
-	journal.beginTest(None, "enable rpcbind on server")
+def rpcbind_basic():
+	journal.beginGroup("rpcbind", "enable rpcbind")
+
+	journal.beginTest("start", "enable rpcbind on server")
 	rpc_run(server, "/usr/bin/systemctl enable rpcbind.socket")
 	rpc_run(server, "/usr/bin/systemctl start rpcbind.socket")
-	journal.finishGroup()
 
-##################################################################
-# Try to locate the rpcinfo utility
-##################################################################
-def rpcinfo_find():
-	global rpcinfo
-
-	journal.beginGroup(None, "make sure rpcinfo works")
-	journal.beginTest("rpcinfo-find", "Find rpcinfo utility")
-	for path in ['/sbin/rpcinfo', '/usr/sbin/rpcinfo', '/bin/rpcinfo', '/usr/bin/rpcinfo']:
-		if __rpc_run(server, "/usr/bin/test -f " + path):
-			rpcinfo = path
-			break
-
-	print "rpcinfo is", rpcinfo
-
-	if not rpcinfo:
-		journal.fatal("unable to find rpcinfo utility")
-	journal.success("rpcifo is at " + rpcinfo)
-
-	journal.beginTest("rpcinfo-validate", "Verify rpcinfo")
-	if not(run_rpcinfo(server, ">/dev/null")):
-		journal.fatal("rpcinfo doesn't seem to work properly")
-
-	journal.beginTest("rpcbind-daemonuser", "Make sure rpcinfo doesn't run as root")
+	journal.beginTest("daemonuser", "Make sure rpcbind doesn't run as root")
 	status = __rpc_run(server, "/sbin/pidofproc /sbin/rpcbind");
 	if not(status) or len(status.stdout) == 0:
 		journal.failure("unable to obtain pid of rpcbind process");
@@ -151,6 +128,31 @@ def rpcinfo_find():
 				journal.success("rpcbind runs as user " + user)
 			else:
 				journal.failure("rpcbind runs as user " + user + ", expected \"rpc\"")
+
+	journal.finishGroup()
+
+##################################################################
+# Try to locate the rpcinfo utility
+##################################################################
+def rpcinfo_find():
+	global rpcinfo
+
+	journal.beginGroup("rpcinfo", "make sure rpcinfo works")
+	journal.beginTest("find", "Find rpcinfo utility")
+	for path in ['/sbin/rpcinfo', '/usr/sbin/rpcinfo', '/bin/rpcinfo', '/usr/bin/rpcinfo']:
+		if __rpc_run(server, "/usr/bin/test -f " + path):
+			rpcinfo = path
+			break
+
+	print "rpcinfo is", rpcinfo
+
+	if not rpcinfo:
+		journal.fatal("unable to find rpcinfo utility")
+	journal.success("rpcifo is at " + rpcinfo)
+
+	journal.beginTest("validate", "Verify rpcinfo")
+	if not(run_rpcinfo(server, ">/dev/null")):
+		journal.fatal("rpcinfo doesn't seem to work properly")
 
 	journal.finishGroup()
 
@@ -260,7 +262,7 @@ def rpcinfo_verify_listing(on_host, option, expected):
 		journal.success();
 
 def rpcinfo_basic():
-	journal.beginGroup("basic-rpcinfo", "basic rpcinfo tests")
+	journal.beginGroup("rpcinfo-basic", "basic rpcinfo tests")
 	rpcinfo_basic_test(server, None, "127.0.0.1")
 	rpcinfo_basic_test(server, None, "::1")
 	rpcinfo_basic_test(server, "-p", None)
@@ -308,7 +310,7 @@ def rpc_verify_rpcinfo_bcast_ifnoaddr():
 	journal.success()
 
 def rpc_regressions():
-	journal.beginGroup("rpcinfo-regressions");
+	journal.beginGroup("rpcinfo-regressions", "Run various regression tests");
 	rpc_verify_rpcinfo_bcast_ifnoaddr()
 	journal.finishGroup()
 
@@ -322,7 +324,7 @@ def rpcinfo_remote_addr(dstaddr):
 
 
 def rpcinfo_remote():
-	journal.beginGroup("rpcinfo-remote");
+	journal.beginGroup("rpcinfo-remote", "Make sure remote rpcinfo works");
 	rpcinfo_remote_addr(server.ipaddr)
 	rpcinfo_null_call_test(client, "udp", server.ipaddr);
 	rpcinfo_null_call_test(client, "tcp", server.ipaddr);
@@ -365,7 +367,7 @@ def square_server_verify_stopped():
 	journal.success()
 
 def rpc_square():
-	journal.beginGroup("rpc-square");
+	journal.beginGroup("rpc-square", "Tests involving the rpc square test service");
 
 	square_server_start()
 
@@ -407,7 +409,7 @@ def rpc_square():
 # Verify all sorts of getaddr functionality
 ##################################################################
 def rpc_getaddr():
-	journal.beginGroup("rpc-getaddr");
+	journal.beginGroup("rpc-getaddr", "Verify RPCB_GETADDR functions");
 
 	square_server_start()
 
@@ -448,7 +450,7 @@ def rpc_getaddr():
 
 def main():
 	setup()
-	rpc_init()
+	rpcbind_basic()
 	rpcinfo_find()
 	rpcinfo_basic()
 	rpc_regressions()
