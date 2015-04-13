@@ -56,16 +56,14 @@ rpcinfo = None
 def setup():
 	global client, server, journal
 
-	config = susetest.Config()
-	reportPath = config.value("report")
-	if not reportPath:
-		reportPath = "report.xml"
-	journal = suselog.Journal("rpc", path = reportPath);
+	config = susetest.Config("rpc")
+
+	journal = config.journal
 
 	journal.beginGroup("setup")
 
-	client = config.target("client")
-	server = config.target("server")
+	client = susetest.Target(config.node("client"))
+	server = susetest.Target(config.node("server"))
 
 	if not client.ipaddr:
 		journal.fatal("No IP address set for client");
@@ -75,35 +73,6 @@ def setup():
 	journal.info("square server: " + square_server_bin)
 	journal.info("square client: " + square_client_bin)
 
-def __rpc_run(target, command):
-	cmd = twopence.Command(command)
-
-	journal.info(target.name + ": " + cmd.commandline)
-	status = target.run(cmd)
-	if not status:
-		journal.info("command failed: " + status.message)
-
-	journal.recordStdout(status.stdout);
-	if status.stdout != status.stderr:
-		journal.recordStderr(status.stderr);
-	
-	return status
-
-def log_buffered_output(desc, data):
-	# data is usually a bytearray
-	if len(data) == 0:
-		return
-
-	journal.failure(desc + ":")
-	for line in str(data).split("\n"):
-		journal.failure(line);
-
-def rpc_run(target, command):
-	status = __rpc_run(target, command)
-	if not(status):
-		journal.failure("command \"" + command + "\" failed: " + status.message);
-	return status
-
 ##################################################################
 # Start rpcbind and run some sanity checks
 ##################################################################
@@ -111,8 +80,8 @@ def rpcbind_start():
 	journal.beginGroup("rpcbind-start", "enable rpcbind")
 
 	journal.beginTest("start", "enable rpcbind on server")
-	rpc_run(server, "/usr/bin/systemctl enable rpcbind.socket")
-	rpc_run(server, "/usr/bin/systemctl start rpcbind.socket")
+	server.runOrFail("/usr/bin/systemctl enable rpcbind.socket")
+	server.runOrFail("/usr/bin/systemctl start rpcbind.socket")
 	journal.finishGroup()
 
 def rpcbind_basic():
@@ -122,13 +91,15 @@ def rpcbind_basic():
 	# that ensure that the rpcbind process has actully been started.
 	# Right now, we rely on systemd's socket activation.
 	journal.beginTest("daemonuser", "Make sure rpcbind doesn't run as root")
-	status = __rpc_run(server, "/sbin/pidofproc /sbin/rpcbind");
+	status = server.run("/sbin/pidofproc /sbin/rpcbind");
 	if not(status) or len(status.stdout) == 0:
 		journal.failure("unable to obtain pid of rpcbind process");
 	else:
 		pid = str(status.stdout).strip();
-		status = rpc_run(server, "/bin/ps hup " + pid);
-		if status and len(status.stdout):
+		status = server.run("/bin/ps hup " + pid);
+		if not(status) or len(status.stdout) == 0:
+			journal.failure("ps did not find rpcbind process");
+		else:
 			# the first column of the ps output is the user name
 			user = str(status.stdout).split(None, 1)[0]
 			if user == "rpc":
@@ -147,7 +118,7 @@ def rpcinfo_find():
 	journal.beginGroup("rpcinfo", "make sure rpcinfo works")
 	journal.beginTest("find", "Find rpcinfo utility")
 	for path in ['/sbin/rpcinfo', '/usr/sbin/rpcinfo', '/bin/rpcinfo', '/usr/bin/rpcinfo']:
-		if __rpc_run(server, "/usr/bin/test -f " + path):
+		if server.run("/usr/bin/test -f " + path):
 			rpcinfo = path
 			break
 
@@ -165,15 +136,17 @@ def rpcinfo_find():
 
 
 def run_rpcinfo(target, args):
+	global rpcinfo
+
 	if not rpcinfo:
 		journal.fatal("run_rpcinfo: rpcinfo path not defined")
 
-	return rpc_run(target, rpcinfo + " " + args)
+	return target.runOrFail(rpcinfo + " " + args)
 
 ##################################################################
 # Basic rpcinfo functionality
 ##################################################################
-def rpcinfo_basic_test(on_host, option, ipaddr):
+def rpcinfo_basic_test(node, option, ipaddr):
 	command = rpcinfo;
 	if option:
 		command += " " + option;
@@ -181,7 +154,7 @@ def rpcinfo_basic_test(on_host, option, ipaddr):
 		command += " " + ipaddr;
 
 	journal.beginTest(None, command);
-	if rpc_run(on_host, command):
+	if node.runOrFail(command):
 		journal.success();
 
 def rpcinfo_null_call_test(on_host, netid, ipaddr, rpc_prog = None):
@@ -191,7 +164,7 @@ def rpcinfo_null_call_test(on_host, netid, ipaddr, rpc_prog = None):
 	command = "%s -T %s %s %s" % (rpcinfo, netid, ipaddr, rpc_prog)
 
 	journal.beginTest(None, command);
-	status = __rpc_run(on_host, command)
+	status = on_host.run(command)
 	if not(status):
 		journal.failure(command + ": " + status.message);
 		return
@@ -206,7 +179,7 @@ def rpcinfo_broadcast_test(on_host, rpc_prog, rpc_vers):
 	command = "%s -b %s %d" % (rpcinfo, rpc_prog, rpc_vers);
 
 	journal.beginTest(None, command);
-	status = __rpc_run(on_host, command)
+	status = on_host.run(command)
 	if not(status):
 		journal.failure(command + ": " + status.message);
 		return
@@ -264,7 +237,7 @@ def rpcinfo_verify_listing(on_host, option, expected):
 		command += " " + option;
 
 	journal.beginTest(None, command);
-	status = rpc_run(on_host, command)
+	status = on_host.runOrFail(command)
 	if status and match_listing(expected, str(status.stdout)):
 		journal.success();
 
@@ -303,17 +276,17 @@ def rpc_verify_rpcinfo_bcast_ifnoaddr():
 	tunctl = "/sbin/tunctl"
 
 	journal.beginTest("bcast-ifnoaddr", "verify that rpcinfo doesn't crash on interfaces w/o address")
-	if not(__rpc_run(client, "/usr/bin/test -x " + tunctl)):
+	if not(client.run("/usr/bin/test -x " + tunctl)):
 		journal.error("tunctl not found, cannot execute this test case");
 		return;
 
-	__rpc_run(client, tunctl + " -t tun123");
+	client.run(tunctl + " -t tun123");
 	if not run_rpcinfo(client, "-b portmapper 2"):
 		journal.failure("portmapper failed, make sure you have fixed __rpc_getbroadifs")
-		__rpc_run(client, tunctl + " -d tun123")
+		client.run(tunctl + " -d tun123")
 		return
 
-	__rpc_run(client, tunctl + " -d tun123")
+	client.run(tunctl + " -d tun123")
 	journal.success()
 
 def rpc_regressions():
@@ -352,17 +325,17 @@ def rpcinfo_remote():
 ##################################################################
 def square_server_start():
 	journal.beginTest(None, "start the square server");
-	if rpc_run(server, square_server_bin):
+	if server.runOrFail(square_server_bin):
 		journal.success()
 
 def square_server_stop():
 	journal.beginTest(None, "stop the square server")
-	rpc_run(server, "/sbin/killproc " + square_server_bin);
-	rpc_run(server, "%s -d %s 1" % (rpcinfo, square_rpc_prog));
+	server.runOrFail("/sbin/killproc " + square_server_bin);
+	server.runOrFail("%s -d %s 1" % (rpcinfo, square_rpc_prog));
 
 def square_server_verify_stopped():
 	journal.beginTest(None, "verify that the server was stopped")
-	status = rpc_run(client, "%s %s" % (rpcinfo, server.ipaddr))
+	status = client.runOrFail("%s %s" % (rpcinfo, server.ipaddr))
 	if not status:
 		return
 
@@ -387,7 +360,7 @@ def rpc_square():
 		rpcinfo_null_call_test(client, "tcp6", ip6addr, square_rpc_prog)
 
 	journal.beginTest(None, "test the square client")
-	status = rpc_run(client, "%s -h %s 11" % (square_client_bin, server.ipaddr));
+	status = client.runOrFail("%s -h %s 11" % (square_client_bin, server.ipaddr));
 	if status:
 		if len(status.stdout) == 0:
 			journal.failure("square command returned no output")
@@ -398,7 +371,6 @@ def rpc_square():
 			result = str(status.stdout).split()[-1];
 			if result != "121":
 				journal.failure("unexpected result from square server, expected 121, got \"%s\"" % result);
-				log_buffered_output("standard output", status.stdout);
 			else:
 				journal.success()
 
@@ -436,7 +408,7 @@ def rpc_getaddr():
 				command += " 1"
 
 			journal.beginTest(None, command);
-			status = __rpc_run(client, command)
+			status = client.run(command)
 			if not status:
 				journal.failure("command failed: " + status.message);
 				continue
