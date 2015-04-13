@@ -70,6 +70,11 @@ def setup():
 	if not server.ipaddr:
 		journal.fatal("No IP address set for server");
 
+	if not server.configureOtherNetworks():
+		journal.fatal("Unable to configure additional networks")
+	if not client.configureOtherNetworks():
+		journal.fatal("Unable to configure additional networks")
+
 	journal.info("square server: " + square_server_bin)
 	journal.info("square client: " + square_client_bin)
 
