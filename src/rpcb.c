@@ -241,8 +241,10 @@ rpctest_verify_rpcb_all(unsigned int flags)
 		freeifaddrs(ifa_list);
 	}
 
-	rpctest_verify_rpcb_gettime(&tcp_conn_info);
-	rpctest_verify_rpcb_misc(&tcp_conn_info);
+	if (flags & RPF_DISPUTED) {
+		rpctest_verify_rpcb_gettime(&tcp_conn_info);
+		rpctest_verify_rpcb_misc(&tcp_conn_info);
+	}
 }
 
 void
@@ -867,6 +869,10 @@ rpctest_verify_rpcb_crashme(void)
  * rpcbind will try to interpret the passed addresses as AF_LOCAL addrs.
  *
  * The code should really use the transport specified by nconf.
+ *
+ * However, I don't think this is really worth it. These functions are
+ * clearly marked for kernel use only (in case it ever wants to mess
+ * with TIRPC netbufs, that is).
  */
 static int
 __rpctest_verify_rpcb_addrfunc(const char *netid)
