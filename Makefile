@@ -4,7 +4,7 @@ testdir	= /usr/lib/twopence/rpc
 
 CFLAGS	= -Wall -O2 -I/usr/include/tirpc -I.
 APPS	= rpc.squared square rpctest getaddr
-LINK	= -L. -lrpctest -ltirpc
+LINK	= -L. -lrpctest -lsuselog -ltirpc
 
 SRVSRCS	= server_main.c
 CLTSRCS	= client_main.c

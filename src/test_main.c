@@ -29,10 +29,20 @@ static int	opt_flags;
 int
 main(int argc, char **argv)
 {
-	const char *opt_hostname = NULL, *opt_testbus_prefix = NULL;
+	static struct option options[] = {
+		{ "with-disputed",	no_argument,		NULL,	'D' },
+		{ "hostname",		required_argument,	NULL,	'h' },
+		{ "quiet",		no_argument,		NULL,	'q' },
+		{ "log-format",		required_argument,	NULL,	'l' },
+		{ "log-file",		required_argument,	NULL,	'f' },
+		{ NULL }
+	};
+	const char *opt_hostname = NULL;
+	const char *opt_log_format = NULL;
+	const char *opt_log_file = NULL;
 	int c;
 
-	while ((c = getopt(argc, argv, "Dh:qT:")) != EOF) {
+	while ((c = getopt_long(argc, argv, "Dh:ql:f:", options, NULL)) != EOF) {
 		switch (c) {
 		case 'D':
 			opt_flags |= RPF_DISPUTED;
@@ -46,9 +56,12 @@ main(int argc, char **argv)
 			opt_flags |= RPF_QUIET;
 			break;
 
-		case 'T':
-			opt_testbus_prefix = optarg;
-			opt_flags |= RPF_TESTBUS;
+		case 'l':
+			opt_log_format = optarg;
+			break;
+
+		case 'f':
+			opt_log_file = optarg;
 			break;
 
 		default:
@@ -65,9 +78,8 @@ main(int argc, char **argv)
 
 	if (opt_flags & RPF_QUIET)
 		log_quiet();
-	if (opt_flags & RPF_TESTBUS)
-		log_format_testbus(opt_testbus_prefix);
 
+	log_init(opt_log_format, "rpcunit", opt_log_file);
 	if (!rpctest_init_nettypes())
 		return 1;
 
@@ -80,12 +92,6 @@ main(int argc, char **argv)
 	rpctest_verify_clnt_funcs();
 
 	log_finish();
-
-	printf("====\nSummary:\n"
-		"%4u tests\n"
-		"%4u failures\n"
-		"%4u warnings\n",
-		num_tests, num_fails, num_warns);
 
 	return num_fails != 0;
 }

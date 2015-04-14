@@ -29,12 +29,13 @@
 #include <syslog.h>
 #include <assert.h>
 #include <time.h>
+#include <suselog.h>
 #include "rpctest.h"
 
 static int		opt_log_quiet;
-static int		opt_log_testbus;
 static char		test_group_msg[1024];
 static char		test_msg[1024];
+static suselog_journal_t *test_journal = NULL;
 
 static unsigned int	test_group_index;
 static const char *	test_root_name;
@@ -45,6 +46,21 @@ unsigned int		num_tests;
 unsigned int		num_warns;
 unsigned int		num_fails;
 
+enum {
+	TEST_BEGIN_GROUP, TEST_END_GROUP,
+	TEST_BEGIN,
+	TEST_SUCCESS, TEST_FAILURE, TEST_WARNING, TEST_ERROR,
+	TEST_INFO,
+	TEST_FATAL,
+};
+
+
+static void		__log_print_plain(int type, const char *name, const char *extra_fmt, va_list extra_ap);
+static void		__log_print_jlogger(int type, const char *name, const char *extra_fmt, va_list extra_ap);
+static void		__log_print_junit(int type, const char *name, const char *extra_fmt, va_list extra_ap);
+
+static void		(*__log_test_begin_or_end)(int type, const char *name, const char *extra_fmt, va_list extra_ap) = __log_print_plain;
+
 void
 log_quiet(void)
 {
@@ -52,100 +68,235 @@ log_quiet(void)
 }
 
 void
-log_format_testbus(const char *prefix)
+log_init_plain(const char *filename)
 {
-	test_root_name = (prefix && *prefix)? prefix : NULL;
-	opt_log_testbus = 1;
+	__log_test_begin_or_end = __log_print_plain;
 }
 
-enum {
-	TEST_BEGIN_GROUP, TEST_END_GROUP,
-	TEST_BEGIN, TEST_SUCCESS, TEST_FAILURE, TEST_WARNING,
-};
+void
+log_init_jlogger(const char *filename)
+{
+	__log_test_begin_or_end = __log_print_jlogger;
+}
+
+void
+log_init_junit(const char *filename)
+{
+	test_journal = suselog_journal_new(test_root_name, suselog_writer_normal());
+	if (filename)
+		suselog_journal_set_pathname(test_journal, filename);
+	__log_test_begin_or_end = __log_print_junit;
+
+	test_root_name = NULL;
+}
+
+void
+log_init(const char *format, const char *prefix, const char *filename)
+{
+	test_root_name = (prefix && *prefix)? prefix : NULL;
+
+	if (!format || !strcmp(format, "plain"))
+		log_init_plain(filename);
+	else if (!strcmp(format, "jlogger"))
+		log_init_jlogger(filename);
+	else if (!strcmp(format, "junit"))
+		log_init_junit(filename);
+	else {
+		fprintf(stderr, "Unknown log file format \"%s\"; exiting\n", format);
+		exit(1);
+	}
+}
 
 static void
-__log_test_begin_or_end(int type, const char *name, const char *extra_fmt, va_list extra_ap)
+__log_print_plain(int type, const char *name, const char *extra_fmt, va_list extra_ap)
 {
-	if (opt_log_testbus) {
-		struct timeval current_time;
-		char timestamp[24];
-
-		gettimeofday(&current_time, NULL);
-		strftime(timestamp, 20, "%Y-%m-%dT%H:%M:%S", gmtime(&current_time.tv_sec));
-		sprintf(timestamp + 19, ".%03d", (int) current_time.tv_usec / 1000);
-
-		switch (type) {
-		case TEST_BEGIN_GROUP:
-			fprintf(stderr, "###junit testsuite time=\"%s\" id=\"%s\"", timestamp, name);
-			break;
-
-		case TEST_END_GROUP:
-			fprintf(stderr, "###junit endsuite time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
-			break;
-
-		case TEST_BEGIN:
-			fprintf(stderr, "###junit testcase time=\"%s\" id=\"%s\"", timestamp, name);
-			break;
-
-		case TEST_SUCCESS:
-			fprintf(stderr, "###junit success time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
-			break;
-
-		case TEST_FAILURE:
-		case TEST_WARNING:									// no real support for warnings in JUnit XML
-			fprintf(stderr, "###junit failure time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
-			break;
-
-		default:										// JUnit XML has real support for internal errors
-			fprintf(stderr, "###junit error time=\"%s\"", timestamp);
-			break;
-		}
-
-		if (extra_fmt) {
-			fprintf(stderr, " text=\"");
+	switch (type) {
+	case TEST_BEGIN_GROUP:
+		fprintf(stderr, "=== ");
+		if (extra_fmt)
 			vfprintf(stderr, extra_fmt, extra_ap);
-			fprintf(stderr, "\"");
-		}
+		fprintf(stderr, " === \n");
+		break;
+
+	case TEST_END_GROUP:
+		/* Nothing */
+		return;
+
+	case TEST_BEGIN:
+		fprintf(stderr, "TEST: ");
+		if (extra_fmt)
+			vfprintf(stderr, extra_fmt, extra_ap);
 		fprintf(stderr, "\n");
-	} else {
-		switch (type) {
-		case TEST_BEGIN_GROUP:
-			fprintf(stderr, "=== ");
-			if (extra_fmt)
-				vfprintf(stderr, extra_fmt, extra_ap);
-			fprintf(stderr, " === \n");
-			break;
+		break;
 
-		case TEST_END_GROUP:
-			/* Nothing */
-			return;
+	case TEST_SUCCESS:
+		/* Nothing */
+		return;
 
-		case TEST_BEGIN:
-			fprintf(stderr, "TEST: ");
-			if (extra_fmt)
-				vfprintf(stderr, extra_fmt, extra_ap);
-			fprintf(stderr, "\n");
-			break;
+	case TEST_FAILURE:
+		fprintf(stderr, "FAIL: ");
+		if (extra_fmt)
+			vfprintf(stderr, extra_fmt, extra_ap);
+		fprintf(stderr, "\n");
+		break;
 
-		case TEST_SUCCESS:
-			/* Nothing */
-			return;
+	case TEST_WARNING:
+		fprintf(stderr, "WARN: ");
+		if (extra_fmt)
+			vfprintf(stderr, extra_fmt, extra_ap);
+		fprintf(stderr, "\n");
+		break;
 
-		case TEST_FAILURE:
-			fprintf(stderr, "FAIL: ");
-			if (extra_fmt)
-				vfprintf(stderr, extra_fmt, extra_ap);
-			fprintf(stderr, "\n");
-			break;
+	case TEST_ERROR:
+		fprintf(stderr, "ERROR: ");
+		if (extra_fmt)
+			vfprintf(stderr, extra_fmt, extra_ap);
+		fprintf(stderr, "\n");
+		break;
 
-		case TEST_WARNING:
-			fprintf(stderr, "WARN: ");
-			if (extra_fmt)
-				vfprintf(stderr, extra_fmt, extra_ap);
-			fprintf(stderr, "\n");
-			break;
-		}
+	case TEST_FATAL:
+		fprintf(stderr, "FATAL ERROR: *** ");
+		if (extra_fmt)
+			vfprintf(stderr, extra_fmt, extra_ap);
+		fprintf(stderr, " *** \n");
+		break;
 
+	case TEST_INFO:
+		fprintf(stderr, "::: ");
+		if (extra_fmt)
+			vfprintf(stderr, extra_fmt, extra_ap);
+		fprintf(stderr, "\n");
+		break;
+	}
+}
+
+static void
+__log_print_jlogger(int type, const char *name, const char *extra_fmt, va_list extra_ap)
+{
+	struct timeval current_time;
+	char timestamp[24];
+
+	gettimeofday(&current_time, NULL);
+	strftime(timestamp, 20, "%Y-%m-%dT%H:%M:%S", gmtime(&current_time.tv_sec));
+	sprintf(timestamp + 19, ".%03d", (int) current_time.tv_usec / 1000);
+
+	if (name == NULL)
+		name = "none";
+
+	switch (type) {
+	case TEST_BEGIN_GROUP:
+		fprintf(stderr, "###junit testsuite time=\"%s\" id=\"%s\"", timestamp, name);
+		break;
+
+	case TEST_END_GROUP:
+		fprintf(stderr, "###junit endsuite time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
+		break;
+
+	case TEST_BEGIN:
+		fprintf(stderr, "###junit testcase time=\"%s\" id=\"%s\"", timestamp, name);
+		break;
+
+	case TEST_SUCCESS:
+		fprintf(stderr, "###junit success time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
+		break;
+
+	case TEST_FAILURE:
+	case TEST_WARNING:									// no real support for warnings in JUnit XML
+		fprintf(stderr, "###junit failure time=\"%s\" id=\"%s\"", timestamp, name);	// id="..." unneeded by JUnit XML
+		break;
+
+	case TEST_FATAL:
+		fprintf(stderr, "FATAL ERROR: *** ");
+		if (extra_fmt)
+			vfprintf(stderr, extra_fmt, extra_ap);
+		fprintf(stderr, " *** \n");
+		break;
+
+	case TEST_INFO:
+		fprintf(stderr, "::: ");
+		break;
+
+	case TEST_ERROR:
+	default:										// JUnit XML has real support for internal errors
+		fprintf(stderr, "###junit error time=\"%s\"", timestamp);
+		break;
+	}
+
+	if (extra_fmt) {
+		fprintf(stderr, " text=\"");
+		vfprintf(stderr, extra_fmt, extra_ap);
+		fprintf(stderr, "\"");
+	}
+	fprintf(stderr, "\n");
+}
+
+/*
+ * Log to a junit file directly
+ */
+static void
+__log_print_junit(int type, const char *name, const char *extra_fmt, va_list extra_ap)
+{
+	suselog_journal_t *j = test_journal;
+	char extra_buffer[1024], *extra_msg = NULL;
+
+	if (extra_fmt) {
+		vsnprintf(extra_buffer, sizeof(extra_buffer), extra_fmt, extra_ap);
+		extra_msg = extra_buffer;
+	}
+
+	switch (type) {
+	case TEST_BEGIN_GROUP:
+		suselog_group_begin(j, name, extra_msg);
+		break;
+
+	case TEST_END_GROUP:
+		if (extra_msg)
+			suselog_info(j, "%s", extra_msg);
+		suselog_group_finish(j);
+		break;
+
+	case TEST_BEGIN:
+		suselog_test_begin(j, name, extra_msg);
+		break;
+
+	case TEST_SUCCESS:
+		if (extra_msg)
+			suselog_success_msg(j, "%s", extra_msg);
+		else
+			suselog_success(j);
+		break;
+
+	case TEST_FAILURE:
+		if (extra_msg)
+			suselog_failure(j, "%s", extra_msg);
+		else
+			suselog_failure(j, NULL);
+		break;
+
+	case TEST_WARNING:
+		if (extra_msg)
+			suselog_warning(j, "%s", extra_msg);
+		break;
+
+	case TEST_ERROR:
+		if (extra_msg)
+			suselog_error(j, "%s", extra_msg);
+		else
+			suselog_error(j, NULL);
+		break;
+
+	case TEST_FATAL:
+		if (extra_msg)
+			suselog_fatal(j, "%s", extra_msg);
+		else
+			suselog_fatal(j, NULL);
+		break;
+
+	case TEST_INFO:
+	default:
+		if (extra_msg)
+			suselog_info(j, "%s", extra_msg);
+		break;
 	}
 }
 
@@ -188,6 +339,7 @@ log_test_group(const char *groupname, const char *fmt, ...)
 	static char *group_name_save = NULL;
 	va_list ap;
 
+	fprintf(stderr, "log_test_group(%s)\n", groupname);
 	__log_test_finish(&test_case_name);
 	__log_group_finish(&test_group_name);
 
@@ -249,6 +401,17 @@ log_finish(void)
 {
 	__log_test_finish(&test_case_name);
 	__log_group_finish(&test_group_name);
+
+	printf("====\nSummary:\n"
+		"%4u tests\n"
+		"%4u failures\n"
+		"%4u warnings\n",
+		num_tests, num_fails, num_warns);
+
+	if (test_journal) {
+		suselog_journal_write(test_journal);
+		test_journal = NULL;
+	}
 }
 
 static void
@@ -303,6 +466,12 @@ log_error(const char *fmt, ...)
 
 	__log_msg_flush();
 
+	if (test_case_name) {
+		va_start(ap, fmt);
+		__log_test_begin_or_end(TEST_ERROR, test_case_name, fmt, ap);
+		va_end(ap);
+	}
+
 	va_start(ap, fmt);
 	fprintf(stderr, "Error: ");
 	vfprintf(stderr, fmt, ap);
@@ -316,9 +485,7 @@ log_trace(const char *fmt, ...)
 	va_list ap;
 
 	va_start(ap, fmt);
-	fprintf(stderr, "::: ");
-	vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
+	__log_test_begin_or_end(TEST_INFO, test_case_name, fmt, ap);
 	va_end(ap);
 }
 
@@ -330,9 +497,7 @@ log_fatal(const char *fmt, ...)
 	__log_msg_flush();
 
 	va_start(ap, fmt);
-	fprintf(stderr, "FATAL ERROR: *** ");
-	vfprintf(stderr, fmt, ap);
-	fprintf(stderr, " ***\n");
+	__log_test_begin_or_end(TEST_FATAL, test_case_name, fmt, ap);
 	va_end(ap);
 
 	exit(1);
