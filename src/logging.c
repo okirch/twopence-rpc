@@ -339,7 +339,6 @@ log_test_group(const char *groupname, const char *fmt, ...)
 	static char *group_name_save = NULL;
 	va_list ap;
 
-	fprintf(stderr, "log_test_group(%s)\n", groupname);
 	__log_test_finish(&test_case_name);
 	__log_group_finish(&test_group_name);
 

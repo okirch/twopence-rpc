@@ -438,14 +438,17 @@ def rpc_getaddr():
 # to merge that into our own journal.
 ##################################################################
 def rpc_unit_tests():
-	global client
+	global server
 
 	journal.beginGroup("rpcunit", "Run the unit tests")
 	journal.beginTest(None, "run rpctest");
 
-	client.run("rpctest --log-format junit --log-file /tmp/rpcunit.xml", user = 'root')
-	if not client.recvfile("/tmp/rpcunit.xml", localfile = "rpcunit.xml", permissions = 0644):
-		journal.failure("unable to download /tmp/rpcunit.xml")
+	server.run("rpctest --log-format junit --log-file /tmp/rpcunit.xml", user = 'root')
+
+	localPath = server.workspaceFile("rpcunit.xml")
+	print "localPath is ", localPath
+	if not server.recvfile("/tmp/rpcunit.xml", localfile = localPath, permissions = 0644):
+		journal.failure("unable to download /tmp/rpcunit.xml to " + localPath)
 		return
 
 	# Note: mergeReport will replace the entire contents of this
@@ -453,7 +456,7 @@ def rpc_unit_tests():
 	# resulting report, you will not see the invocation of rpctest shown above,
 	# or the download of rpcunit.xml, but only the *contents* of rpcunit.xml
 	# magically appearing in its place.
-	journal.mergeReport("rpcunit.xml")
+	journal.mergeReport(localPath)
 
 def main():
 	setup()
