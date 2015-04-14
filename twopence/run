@@ -432,6 +432,29 @@ def rpc_getaddr():
 
 	journal.finishGroup()
 
+##################################################################
+# Run rpc unit tests
+# This test program generates its own unit test log, so we need
+# to merge that into our own journal.
+##################################################################
+def rpc_unit_tests():
+	global client
+
+	journal.beginGroup("rpcunit", "Run the unit tests")
+	journal.beginTest(None, "run rpctest");
+
+	client.run("rpctest --log-format junit --log-file /tmp/rpcunit.xml", user = 'root')
+	if not client.recvfile("/tmp/rpcunit.xml", localfile = "rpcunit.xml", permissions = 0644):
+		journal.failure("unable to download /tmp/rpcunit.xml")
+		return
+
+	# Note: mergeReport will replace the entire contents of this
+	# group of messages with the contents of rpcunit.xml. So in the
+	# resulting report, you will not see the invocation of rpctest shown above,
+	# or the download of rpcunit.xml, but only the *contents* of rpcunit.xml
+	# magically appearing in its place.
+	journal.mergeReport("rpcunit.xml")
+
 def main():
 	setup()
 	rpcbind_start()
@@ -443,9 +466,7 @@ def main():
 	rpc_square()
 	rpc_getaddr()
 
-	# TODO: run test rpctest set of unit tests over the network.
-	# This test program generates its own unit test log, which we
-	# would need to merge into our own journal
+	rpc_unit_tests();
 
 	journal.writeReport()
 
