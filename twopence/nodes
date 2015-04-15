@@ -1,0 +1,11 @@
+# Client node
+node      client
+repo      http://download.suse.de/ibs/Devel:/SLEnkins/${SYSTEM_CLIENT}/Devel:SLEnkins.repo
+install   tunctl
+install   %{name}-client
+
+# Server node
+node      server
+repo      http://download.suse.de/ibs/Devel:/SLEnkins/${SYSTEM_SERVER}/Devel:SLEnkins.repo
+install   rpcbind
+install   %{name}-client
