@@ -41,9 +41,7 @@ all: $(APPS)
 install: $(APPS)
 	install -m 755 -d $(DESTDIR)$(bindir)
 	install -m 555 $(APPS) $(DESTDIR)$(bindir)
-	install -m 755 -d $(DESTDIR)$(testdir)
-	install -m 555 twopence/run $(DESTDIR)$(testdir)
-	install -m 444 twopence/susetest.conf.in $(DESTDIR)$(testdir)
+	/usr/lib/susetest/twopence-install rpc twopence/nodes twopence/run $(DESTDIR)
 
 clean:
 	rm -rf obj $(APPS) $(LIB) $(GENFILES)
