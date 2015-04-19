@@ -1,11 +1,13 @@
 # Client node
 node      client
-repo      http://download.suse.de/ibs/Devel:/SLEnkins/${SYSTEM_CLIENT}/Devel:SLEnkins.repo
+repo      slenkins
+repo      updates
 install   tunctl
 install   twopence-rpc-client
 
 # Server node
 node      server
-repo      http://download.suse.de/ibs/Devel:/SLEnkins/${SYSTEM_SERVER}/Devel:SLEnkins.repo
+repo      slenkins
+repo      updates
 install   rpcbind
 install   twopence-rpc-client
