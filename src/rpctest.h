@@ -68,6 +68,7 @@ extern void	rpctest_verify_svc_register(void);
 extern void	rpctest_verify_clnt_funcs(void);
 
 extern int	rpctest_run_oldstyle(unsigned long, unsigned long, rpc_program_fn_t *);
+extern int	rpctest_run_newstyle(unsigned long, unsigned long, rpc_program_fn_t *);
 extern int	rpctest_register_service_nettype(unsigned long, unsigned long, rpc_program_fn_t *, const char *);
 extern CLIENT *	rpctest_rpcb_client(const char *, const char *, unsigned int, char **);
 extern RPCB *	rpctest_rpcb_get_registrations(rpcprog_t);

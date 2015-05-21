@@ -181,3 +181,16 @@ rpctest_run_oldstyle(unsigned long prog, unsigned long vers, rpc_program_fn_t *p
 
 	return 1;
 }
+
+int
+rpctest_run_newstyle(unsigned long prog, unsigned long vers, rpc_program_fn_t *progfn)
+{
+	svc_unreg(prog, vers);
+
+	if (svc_create(progfn, prog, vers, NULL) == 0) {
+		fprintf (stderr, "cannot create services.\n");
+		return 0;
+	}
+
+	return 1;
+}

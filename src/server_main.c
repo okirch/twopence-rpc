@@ -35,10 +35,11 @@ main(int argc, char **argv)
 	const char *opt_hostname = NULL;
 	const char *opt_nettype[16];
 	int opt_foreground = 0;
+	int opt_oldstyle = 0;
 	unsigned int num_nettypes = 0;
 	int c;
 
-	while ((c = getopt(argc, argv, "fh:T:")) != EOF) {
+	while ((c = getopt(argc, argv, "fh:oT:")) != EOF) {
 		switch (c) {
 		case 'f':
 			opt_foreground = 1;
@@ -46,6 +47,10 @@ main(int argc, char **argv)
 
 		case 'h':
 			opt_hostname = optarg;
+			break;
+
+		case 'o':
+			opt_oldstyle = 1;
 			break;
 
 		case 'T':
@@ -75,8 +80,11 @@ main(int argc, char **argv)
 			if (!rpctest_register_service_nettype(SQUARE_PROG, SQUARE_VERS, square_prog_1, nettype))
 				return 1;
 		}
-	} else {
+	} else
+	if (opt_oldstyle) {
 		rpctest_run_oldstyle(SQUARE_PROG, SQUARE_VERS, square_prog_1);
+	} else {
+		rpctest_run_newstyle(SQUARE_PROG, SQUARE_VERS, square_prog_1);
 	}
 
 	if (!opt_foreground && daemon(0, 0) < 0) {
