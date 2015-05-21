@@ -69,6 +69,8 @@ def setup():
 		journal.fatal("No IP address set for client");
 	if not server.ipaddr:
 		journal.fatal("No IP address set for server");
+	if server.ipv6_addr:
+		journal.info("Server has %s" % server.ipv6_addr)
 
 	if not server.configureOtherNetworks():
 		journal.fatal("Unable to configure additional networks")
@@ -314,7 +316,7 @@ def rpcinfo_remote():
 	rpcinfo_null_call_test(client, "udp", server.ipaddr);
 	rpcinfo_null_call_test(client, "tcp", server.ipaddr);
 	
-	ipv6addr = server.property("ip6addr")
+	ipv6addr = server.ipv6_addr
 	if (ipv6addr):
 		rpcinfo_remote_addr(ipv6addr);
 		rpcinfo_null_call_test(client, "udp6", ipv6addr);
@@ -359,7 +361,7 @@ def rpc_square():
 	rpcinfo_null_call_test(client, "udp", server.ipaddr, square_rpc_prog)
 	rpcinfo_null_call_test(client, "tcp", server.ipaddr, square_rpc_prog)
 
-	ipv6addr = server.property("ip6addr")
+	ipv6addr = server.ipv6_addr
 	if (ipv6addr):
 		rpcinfo_null_call_test(client, "udp6", ip6addr, square_rpc_prog)
 		rpcinfo_null_call_test(client, "tcp6", ip6addr, square_rpc_prog)
@@ -400,9 +402,9 @@ def rpc_getaddr():
 	for option in ["", "--no-netid", "--no-hint", "--use-getversaddr"]:
 		for netid in ["udp", "tcp", "udp6", "tcp6"]:
 			if netid == "udp" or netid == "tcp":
-				dstaddr = server.property("ipaddr")
+				dstaddr = server.ipaddr
 			else:
-				dstaddr = server.property("ip6addr")
+				dstaddr = server.ipv6_addr
 
 			if not dstaddr:
 				continue
