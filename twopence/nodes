@@ -1,13 +1,9 @@
 # Client node
 node      client
-repo      slenkins
-repo      updates
 install   tunctl
 install   twopence-rpc-client
 
 # Server node
 node      server
-repo      slenkins
-repo      updates
 install   rpcbind
 install   twopence-rpc-client
