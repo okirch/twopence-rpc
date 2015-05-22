@@ -160,7 +160,7 @@ def rpcinfo_basic_test(node, option, ipaddr):
 	if ipaddr:
 		command += " " + ipaddr;
 
-	journal.beginTest(None, command);
+	journal.beginTest(command);
 	if node.runOrFail(command):
 		journal.success();
 
@@ -170,7 +170,7 @@ def rpcinfo_null_call_test(on_host, netid, ipaddr, rpc_prog = None):
 
 	command = "%s -T %s %s %s" % (rpcinfo, netid, ipaddr, rpc_prog)
 
-	journal.beginTest(None, command);
+	journal.beginTest(command);
 	status = on_host.run(command)
 	if not(status):
 		journal.failure(command + ": " + status.message);
@@ -185,7 +185,7 @@ def rpcinfo_null_call_test(on_host, netid, ipaddr, rpc_prog = None):
 def rpcinfo_broadcast_test(on_host, rpc_prog, rpc_vers):
 	command = "%s -b %s %d" % (rpcinfo, rpc_prog, rpc_vers);
 
-	journal.beginTest(None, command);
+	journal.beginTest(command);
 	status = on_host.run(command)
 	if not(status):
 		journal.failure(command + ": " + status.message);
@@ -243,7 +243,7 @@ def rpcinfo_verify_listing(on_host, option, expected):
 	if option:
 		command += " " + option;
 
-	journal.beginTest(None, command);
+	journal.beginTest(command);
 	status = on_host.runOrFail(command)
 	if status and match_listing(expected, str(status.stdout)):
 		journal.success();
@@ -331,17 +331,17 @@ def rpcinfo_remote():
 # a number) and exercise some functions of the rpc library
 ##################################################################
 def square_server_start():
-	journal.beginTest(None, "start the square server");
+	journal.beginTest("start the square server");
 	if server.runOrFail(square_server_bin):
 		journal.success()
 
 def square_server_stop():
-	journal.beginTest(None, "stop the square server")
+	journal.beginTest("stop the square server")
 	server.runOrFail("/sbin/killproc " + square_server_bin);
 	server.runOrFail("%s -d %s 1" % (rpcinfo, square_rpc_prog));
 
 def square_server_verify_stopped():
-	journal.beginTest(None, "verify that the server was stopped")
+	journal.beginTest("verify that the server was stopped")
 	status = client.runOrFail("%s %s" % (rpcinfo, server.ipaddr))
 	if not status:
 		return
@@ -366,7 +366,7 @@ def rpc_square():
 		rpcinfo_null_call_test(client, "udp6", ipv6addr, square_rpc_prog)
 		rpcinfo_null_call_test(client, "tcp6", ipv6addr, square_rpc_prog)
 
-	journal.beginTest(None, "test the square client")
+	journal.beginTest("test the square client")
 	status = client.runOrFail("%s -h %s 11" % (square_client_bin, server.ipaddr));
 	if status:
 		if len(status.stdout) == 0:
@@ -414,7 +414,7 @@ def rpc_getaddr():
 				# When using getversaddr, we need to specify the rpc version, too
 				command += " 1"
 
-			journal.beginTest(None, command);
+			journal.beginTest(command);
 			status = client.run(command)
 			if not status:
 				journal.failure("command failed: " + status.message);
@@ -443,7 +443,7 @@ def rpc_unit_tests():
 	global server
 
 	journal.beginGroup("rpcunit", "Run the unit tests")
-	journal.beginTest(None, "run rpctest");
+	journal.beginTest("run rpctest");
 
 	server.run("rpctest --log-format junit --log-file /tmp/rpcunit.xml", user = 'root')
 
