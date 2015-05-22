@@ -363,8 +363,8 @@ def rpc_square():
 
 	ipv6addr = server.ipv6_addr
 	if (ipv6addr):
-		rpcinfo_null_call_test(client, "udp6", ip6addr, square_rpc_prog)
-		rpcinfo_null_call_test(client, "tcp6", ip6addr, square_rpc_prog)
+		rpcinfo_null_call_test(client, "udp6", ipv6addr, square_rpc_prog)
+		rpcinfo_null_call_test(client, "tcp6", ipv6addr, square_rpc_prog)
 
 	journal.beginTest(None, "test the square client")
 	status = client.runOrFail("%s -h %s 11" % (square_client_bin, server.ipaddr));
