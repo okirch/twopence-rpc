@@ -61,9 +61,8 @@ def setup():
 	journal = config.journal
 
 	journal.beginGroup("setup")
-
-	client = susetest.Target(config.node("client"))
-	server = susetest.Target(config.node("server"))
+	client = config.target("client")
+	server = config.target("server")
 
 	if not client.ipaddr:
 		journal.fatal("No IP address set for client");
