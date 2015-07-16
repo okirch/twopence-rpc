@@ -23,11 +23,14 @@
 #include <getopt.h>
 #include "square.h"
 
+extern int	do_stress(const char *hostname, const char *netid, int argc, char **argv);
+
 int
 main(int argc, char **argv)
 {
 	const char *opt_hostname = "localhost";
 	const char *opt_ipproto = NULL;
+	int opt_runtime = -1;
 	CLIENT *clnt;
 	int c;
 
@@ -56,6 +59,10 @@ main(int argc, char **argv)
 
 	if (optind == argc)
 		goto usage;
+
+	if (!strcmp(argv[optind], "stress")) {
+		return do_stress(opt_hostname, opt_ipproto, argc - optind, argv + optind);
+	}
 
 	clnt = clnt_create(opt_hostname, SQUARE_PROG, SQUARE_VERS, opt_ipproto? : "udp");
 	if (clnt == NULL) {

@@ -434,6 +434,35 @@ def rpc_getaddr():
 	journal.finishGroup()
 
 ##################################################################
+# Run rpc over tcp stress test
+##################################################################
+def rpc_tcp_stress():
+	journal.beginGroup("rpc-tcpstress", "Stress test server side TCP handling")
+
+	square_server_start()
+
+	for njobs in [2, 8, 32, 64, 128]:
+		journal.beginTest("use %u concurrent TCP connections" % njobs)
+		rpc_run_stress(runtime = 15, jobs = njobs)
+
+	journal.beginTest("128 concurrent TCP connections, long run")
+	rpc_run_stress(runtime = 60, jobs = 128, timeout = 30)
+
+	square_server_stop()
+
+def rpc_run_stress(runtime = 10, jobs = 1, timeout = -1):
+	command = "%s -h %s stress" % (square_client_bin, server.ipaddr);
+	if runtime > 0:
+		command += " runtime=%u" % runtime
+	if jobs > 0:
+		command += " jobs=%u" % jobs
+	if timeout > 0:
+		command += " job-timeout=%u" % timeout
+
+	print "command=", command
+	client.runOrFail(command, timeout = 120);
+
+##################################################################
 # Run rpc unit tests
 # This test program generates its own unit test log, so we need
 # to merge that into our own journal.
@@ -469,6 +498,7 @@ def main():
 	rpcinfo_remote()
 	rpc_square()
 	rpc_getaddr()
+	rpc_tcp_stress()
 
 	rpc_unit_tests();
 

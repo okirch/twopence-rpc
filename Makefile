@@ -2,12 +2,14 @@
 bindir	= /usr/bin
 testdir	= /usr/lib/twopence/rpc
 
-CFLAGS	= -Wall -O2 -I/usr/include/tirpc -I.
+CCOPT	= -O2
+CFLAGS	= -Wall $(CCOPT) -I/usr/include/tirpc -I.
 APPS	= rpc.squared square rpctest getaddr
 LINK	= -L. -lrpctest -lsuselog -ltirpc
 
 SRVSRCS	= server_main.c
-CLTSRCS	= client_main.c
+CLTSRCS	= client_main.c \
+	  stress.c
 TSTSRCS	= test_main.c
 GADSRCS	= getaddr.c
 LIBSRCS	= register.c \
