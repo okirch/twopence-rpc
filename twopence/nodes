@@ -3,9 +3,15 @@ node		client
 repository	${CHANNEL_SLENKINS_CLIENT}
 install		tunctl
 install		twopence-rpc-client
+# This forces the packages to be updated to the latest available binary rpm
+install		rpcbind
+install		libtirpc1
 
 # Server node
 node		server
 repository	${CHANNEL_SLENKINS_SERVER}
 install		rpcbind
 install		twopence-rpc-client
+# This forces the packages to be updated to the latest available binary rpm
+install		rpcbind
+install		libtirpc1
