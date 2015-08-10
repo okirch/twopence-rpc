@@ -30,14 +30,20 @@ main(int argc, char **argv)
 {
 	const char *opt_hostname = "localhost";
 	const char *opt_ipproto = NULL;
-	int opt_runtime = -1;
-	CLIENT *clnt;
+	struct netconfig *nc = NULL;
+	int opt_callit = 0;
+	CLIENT *clnt = NULL;
 	int c;
 
-	while ((c = getopt(argc, argv, "h:TU")) != EOF) {
+	while ((c = getopt(argc, argv, "h:iTU")) != EOF) {
 		switch (c) {
 		case 'h':
 			opt_hostname = optarg;
+			break;
+
+		case 'i':
+			/* indirect call */
+			opt_callit = 1;
 			break;
 
 		case 'T':
@@ -61,28 +67,61 @@ main(int argc, char **argv)
 		goto usage;
 
 	if (!strcmp(argv[optind], "stress")) {
+		if (opt_callit)
+			fprintf(stderr, "Ignoring -i (indirect) option\n");
 		return do_stress(opt_hostname, opt_ipproto, argc - optind, argv + optind);
 	}
 
-	clnt = clnt_create(opt_hostname, SQUARE_PROG, SQUARE_VERS, opt_ipproto? : "udp");
-	if (clnt == NULL) {
-		clnt_pcreateerror("unable to create client");
-		return 1;
+	if (opt_callit == 0) {
+		/* Default case: direct calls.
+		 * Create a client handle for the square server. */
+		clnt = clnt_create(opt_hostname, SQUARE_PROG, SQUARE_VERS, opt_ipproto? : "udp");
+
+		if (clnt == NULL) {
+			clnt_pcreateerror("unable to create client");
+			return 1;
+		}
+	} else {
+		clnt = NULL;
+
+		nc = getnetconfigent(opt_ipproto? : "udp");
+		nc = getnetconfigent(opt_ipproto? : "udp");
+		if (nc == NULL || nc->nc_semantics != NC_TPI_CLTS) {
+			fprintf(stderr,
+				"Bad or incompatible transport requested (must be connectionless)\n");
+			return 1;
+		}
 	}
 
 	while (optind < argc) {
+		square_out *outp = NULL, out;
 		square_in in;
-		square_out *outp;
 
 		in.arg1 = strtol(argv[optind++], NULL, 0);
-		outp = squareproc_1(&in, clnt);
-		if (outp == NULL) {
-			clnt_perror(clnt, "rpc call failed");
-			return 1;
+
+		if (clnt != NULL) {
+			outp = squareproc_1(&in, clnt);
+
+			if (outp == NULL) {
+				clnt_perror(clnt, "rpc call failed");
+				return 1;
+			}
+		} else {
+			static struct timeval timeo = { 30, 0 };
+			enum clnt_stat st;
+
+			st = rpcb_rmtcall(nc, opt_hostname, SQUARE_PROG, SQUARE_VERS, SQUAREPROC,
+					(xdrproc_t) xdr_square_in, (caddr_t) &in,
+					(xdrproc_t) xdr_square_out, (caddr_t) &out,
+					timeo, NULL);
+			if (st != RPC_SUCCESS) {
+				fprintf(stderr, "rpc call failed: %s\n", clnt_sperrno(st));
+				return 1;
+			}
+			outp = &out;
 		}
 
-		printf("%6ld^2 = %6lu\n",
-				in.arg1, outp->res1);
+		printf("%6ld^2 = %6lu\n", in.arg1, outp->res1);
 	}
 
 	return 0;
