@@ -295,9 +295,32 @@ def rpc_verify_rpcinfo_bcast_ifnoaddr():
 	client.run(tunctl + " -d tun123")
 	journal.success()
 
+##################################################################
+# rpcbind used to crash when sending it a certain combination of
+# CALLIT messages (bsc#940191, CVE-2015-7236)
+##################################################################
+def rpc_verify_cve_2015_7236():
+	journal.beginTest("CVE-2015-7236");
+
+	journal.info("Start the RPC square server")
+	if not server.runOrFail(square_server_bin):
+		return False
+
+	st = client.runOrFail("bug940191 " + server.ipaddr)
+
+	server.runOrFail("/sbin/killproc " + square_server_bin)
+
+	if not st:
+		return False
+
+	journal.success();
+	return True
+	
+
 def rpc_regressions():
 	journal.beginGroup("rpcinfo-regressions", "Run various regression tests");
 	rpc_verify_rpcinfo_bcast_ifnoaddr()
+	rpc_verify_cve_2015_7236()
 	journal.finishGroup()
 
 ##################################################################
