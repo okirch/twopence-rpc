@@ -4,7 +4,8 @@ testdir	= /usr/lib/twopence/rpc
 
 CCOPT	= -O2
 CFLAGS	= -Wall $(CCOPT) -I/usr/include/tirpc -I.
-APPS	= rpc.squared square rpctest getaddr
+APPS	= rpc.squared square rpctest getaddr \
+	  bug940191
 LINK	= -L. -lrpctest -lsuselog -ltirpc
 
 SRVSRCS	= server_main.c
@@ -62,6 +63,9 @@ rpctest: $(TSTOBJS) $(LIB)
 
 getaddr: $(GADOBJS) $(LIB)
 	$(CC) $(CFLAGS) -o $@ $(GADOBJS) $(LINK)
+
+bug940191: obj/bug940191.o $(LIB)
+	$(CC) $(CFLAGS) -o $@ obj/bug940191.o $(LINK)
 
 
 obj/%.o: src/%.c
