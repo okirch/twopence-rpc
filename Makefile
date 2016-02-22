@@ -45,6 +45,11 @@ install: $(APPS)
 	install -m 555 $(APPS) $(DESTDIR)$(bindir)
 	/usr/lib/susetest/twopence-install rpc twopence/nodes twopence/run $(DESTDIR)
 
+tags: .FORCE
+	ctags $(addprefix src/,$(ALLSRCS))
+
+.FORCE: ;
+
 clean:
 	rm -rf obj $(APPS) $(LIB) $(GENFILES)
 
