@@ -111,6 +111,12 @@ struct sumjob {
 
 	unsigned int		sum;
 
+	/* If we got EMFILE when trying to create the socket, then
+	 * we do not want to try this again.
+	 * Mark this job as dead, but prevent it from being destroyed
+	 */
+	char			mummified;
+
 	char			last_activity;
 };
 
@@ -332,48 +338,61 @@ sumclnt_poll(struct sumclnt *clnt)
 {
 	struct pollfd *pfd;
 	struct timeout timeout;
-	unsigned int i;
+	unsigned int i, nfds;
 
 	timeout_init(&timeout, 10000);
 
 	pfd = alloca(clnt->conf.njobs * sizeof(pfd[0]));
-	for (i = 0; i < clnt->conf.njobs; ++i) {
+	for (i = nfds = 0; i < clnt->conf.njobs; ++i) {
 		struct sumjob *job = clnt->jobs[i];
+		struct pollfd *p;
 
 		if (job == NULL) {
 			job = sumjob_new(clnt, i, random() % 65536);
 			if (job == NULL)
 				log_fatal("Unable to create new sum job");
-			if (sumjob_connect(clnt, job) < 0)
-				log_fatal("Unable to connect to server");
+			if (sumjob_connect(clnt, job) < 0) {
+				log_error("Unable to connect to server");
+			}
 			sumjob_set_timeout(clnt, job);
 			clnt->jobs[i] = job;
 		}
 
-		pfd[i].fd = job->fd;
+		if (job->fd < 0) {
+			job->pollfd = NULL;
+			continue;
+		}
 
-		pfd[i].events = 0;
+		job->pollfd = p = pfd + nfds++;
+
+		p->fd = job->fd;
+		p->events = 0;
 		if (job->send.pos >= job->send.len) {
 			/* We already sent everything. */
-			pfd[i].events = POLLIN;
+			p->events = POLLIN;
 		} else {
-			pfd[i].events = POLLOUT | POLLHUP;
+			p->events = POLLOUT | POLLHUP;
 			job->last_activity = '.';
 		}
 
-		pfd[i].events |= POLLERR;
-		pfd[i].revents = 0;
-		job->pollfd = pfd + i;
+		p->events |= POLLERR;
+		p->revents = 0;
 	}
 
-	if (poll(pfd, clnt->conf.njobs, timeout_value(&timeout)) < 0)
+	if (poll(pfd, nfds, timeout_value(&timeout)) < 0)
 		log_fatal("poll: %m");
 
 	timeout_init(&timeout, -1);
 	for (i = 0; i < clnt->conf.njobs; ++i) {
 		struct sumjob *job = clnt->jobs[i];
+		struct pollfd *p;
 
-		if (pfd[i].revents & POLLERR) {
+		if ((p = job->pollfd) == NULL) {
+			job->last_activity = '*';
+			continue;
+		}
+
+		if (p->revents & POLLERR) {
 			log_error("%s: detected POLLERR - remote closed connection?", job->name);
 			job->last_activity = '*';
 			sumjob_close(job);
@@ -381,15 +400,15 @@ sumclnt_poll(struct sumclnt *clnt)
 			continue;
 		}
 
-		if (pfd[i].revents & POLLOUT) {
+		if (p->revents & POLLOUT) {
 			if (sumjob_send(clnt, job) < 0)
 				log_fatal("Unable to send data");
 		} else
-		if (pfd[i].revents & POLLIN) {
+		if (p->revents & POLLIN) {
 			if (sumjob_recv(clnt, job) < 0)
 				log_fatal("Unable to recv data");
 		} else
-		if (pfd[i].revents & POLLHUP) {
+		if (p->revents & POLLHUP) {
 			log_error("%s: remote closed connection", job->name);
 			job->last_activity = '*';
 			sumjob_close(job);
@@ -437,7 +456,7 @@ sumclnt_poll(struct sumclnt *clnt)
 			continue;
 
 		job->pollfd = NULL;
-		if (job->fd < 0) {
+		if (job->fd < 0 && !job->mummified) {
 			sumjob_free(job);
 			clnt->jobs[i] = NULL;
 		}
@@ -466,6 +485,8 @@ sumjob_connect(struct sumclnt *clnt, struct sumjob *job)
 
 	job->fd = socket(PF_INET, SOCK_STREAM, 0);
 	if (job->fd < 0) {
+		if (errno == EMFILE || errno == ENFILE)
+			job->mummified = 1;
 		perror("socket");
 		return -1;
 	}
