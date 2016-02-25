@@ -41,21 +41,29 @@
 #define BASE_PORT		0
 #define HIST_MAX		100
 
-struct sumclnt {
-	struct sockaddr_storage	svc_addr;
-	socklen_t		svc_addrlen;
+struct stress_opts {
+	int			trace;
+	double			job_timeout;
 
 	/* Max number of calls per TCP connection before we recycle
 	 * the connection. */
 	unsigned int		max_calls;
 
+	unsigned int		njobs;
+	unsigned int		max_errors;
+	time_t			end_time;
+};
+
+struct sumclnt {
+	struct sockaddr_storage	svc_addr;
+	socklen_t		svc_addrlen;
+
+	struct stress_opts	conf;
+
 	/* Number of calls made */
 	unsigned long		ncalls;
 
-	double			job_timeout;
-
 	struct sumjob **	jobs;
-	unsigned int		njobs;
 
 	unsigned int		errors;
 
@@ -113,12 +121,9 @@ struct timeout {
 
 static unsigned int	xid = 0x1234abcd;
 
-static int		opt_trace;
-static unsigned int	opt_job_timeout = 0;
-static unsigned int	opt_max_calls = 32;
 
 
-static struct sumclnt *	sumclnt_new(const char *hostname, unsigned int njobs);
+static struct sumclnt *	sumclnt_new(const char *hostname, struct stress_opts *opt);
 static void		sumclnt_free(struct sumclnt *clnt);
 static int		sumclnt_poll(struct sumclnt *clnt);
 
@@ -143,17 +148,19 @@ static void		hist_init(struct histogram *h, double xrange);
 static void		hist_record(struct histogram *h, const struct timeval *t0);
 static void		hist_print(struct histogram *h, unsigned int nlines);
 
-int
-do_stress(const char *hostname, const char *netid, int argc, char **argv)
+static void
+stress_opts_init_defaults(struct stress_opts *opt)
 {
-	struct sumclnt *clnt;
-	time_t end_time = 0;
-	unsigned int opt_njobs = 128;
-	unsigned int opt_max_errors = 256;
-	int exitval = 0;
-	int i;
+	memset(opt, 0, sizeof(*opt));
+	opt->max_calls = 32;
+	opt->njobs = 128;
+	opt->max_errors = 256;
+}
 
-	srandom(getpid());
+static int
+stress_opts_set(struct stress_opts *opt, int argc, char **argv)
+{
+	int i;
 
 	for (i = 1; i < argc; ++i) {
 		char *name = argv[i];
@@ -164,7 +171,7 @@ do_stress(const char *hostname, const char *netid, int argc, char **argv)
 			*value++ = '\0';
 
 		if (!strcmp(name, "trace")) {
-			opt_trace = 1;
+			opt->trace = 1;
 			continue;
 		}
 
@@ -192,23 +199,23 @@ do_stress(const char *hostname, const char *netid, int argc, char **argv)
 		}
 
 		if (!strcmp(name, "runtime")) {
-			end_time = time(NULL) + number;
+			opt->end_time = time(NULL) + number;
 			continue;
 		}
 		if (!strcmp(name, "jobs")) {
-			opt_njobs = number;
+			opt->njobs = number;
 			continue;
 		}
 		if (!strcmp(name, "job-timeout")) {
-			opt_job_timeout = number;
+			opt->job_timeout = number;
 			continue;
 		}
 		if (!strcmp(name, "max-calls")) {
-			opt_max_calls = number;
+			opt->max_calls = number;
 			continue;
 		}
 		if (!strcmp(name, "max-errors")) {
-			opt_max_errors = number;
+			opt->max_errors = number;
 			continue;
 		}
 
@@ -219,7 +226,26 @@ ignore_arg:
 		log_error("ignoring argument %s", name);
 	}
 
-	clnt = sumclnt_new(hostname, opt_njobs);
+	if (opt->job_timeout == 0)
+		opt->job_timeout = 0.1 * opt->njobs * 2;
+	if (opt->job_timeout < 10)
+		opt->job_timeout = 10;
+
+	return 0;
+}
+
+int
+do_stress(const char *hostname, const char *netid, int argc, char **argv)
+{
+	struct stress_opts opt;
+	struct sumclnt *clnt;
+	int exitval = 0;
+
+	srandom(getpid());
+	stress_opts_init_defaults(&opt);
+	stress_opts_set(&opt, argc, argv);
+
+	clnt = sumclnt_new(hostname, &opt);
 
 	/* FIXME: warn if the runtime is smaller than the default job timeout */
 
@@ -227,15 +253,15 @@ ignore_arg:
 		if (sumclnt_poll(clnt) < 0)
 			return 1;
 
-		if (end_time && end_time <= time(NULL))
+		if (opt.end_time && opt.end_time <= time(NULL))
 			break;
-		if (clnt->errors >= opt_max_errors) {
+		if (clnt->errors >= opt.max_errors) {
 			log_error("Too many errors, aborting this run");
 			break;
 		}
 	}
 
-	if (!opt_trace)
+	if (!opt.trace)
 		printf("\n");
 
 	if (clnt->errors) {
@@ -254,19 +280,14 @@ ignore_arg:
 }
 
 struct sumclnt *
-sumclnt_new(const char *hostname, unsigned int njobs)
+sumclnt_new(const char *hostname, struct stress_opts *opt)
 {
 	struct netconfig *nconf;
 	struct sumclnt *clnt;
 	struct netbuf abuf;
 
 	clnt = calloc(1, sizeof(*clnt));
-	clnt->max_calls = opt_max_calls;
-	clnt->job_timeout = opt_job_timeout;
-	if (clnt->job_timeout == 0)
-		clnt->job_timeout = 0.1 * njobs * 2;
-	if (clnt->job_timeout < 10)
-		clnt->job_timeout = 10;
+	clnt->conf = *opt;
 
 	abuf.buf = &clnt->svc_addr;
 	abuf.len = abuf.maxlen = sizeof(clnt->svc_addr);
@@ -278,8 +299,7 @@ sumclnt_new(const char *hostname, unsigned int njobs)
 	freenetconfigent(nconf);
 	clnt->svc_addrlen = abuf.len;
 
-	clnt->jobs = calloc(njobs, sizeof(clnt->jobs[0]));
-	clnt->njobs = njobs;
+	clnt->jobs = calloc(opt->njobs, sizeof(clnt->jobs[0]));
 
 	/* Send histogram is 0..500 msec */
 	hist_init(&clnt->send_histogram, 500 * 1e-3);
@@ -295,7 +315,7 @@ sumclnt_free(struct sumclnt *clnt)
 {
 	unsigned int i;
 
-	for (i = 0; i < clnt->njobs; ++i) {
+	for (i = 0; i < clnt->conf.njobs; ++i) {
 		struct sumjob *job = clnt->jobs[i];
 
 		if (job)
@@ -316,8 +336,8 @@ sumclnt_poll(struct sumclnt *clnt)
 
 	timeout_init(&timeout, 10000);
 
-	pfd = alloca(clnt->njobs * sizeof(pfd[0]));
-	for (i = 0; i < clnt->njobs; ++i) {
+	pfd = alloca(clnt->conf.njobs * sizeof(pfd[0]));
+	for (i = 0; i < clnt->conf.njobs; ++i) {
 		struct sumjob *job = clnt->jobs[i];
 
 		if (job == NULL) {
@@ -346,11 +366,11 @@ sumclnt_poll(struct sumclnt *clnt)
 		job->pollfd = pfd + i;
 	}
 
-	if (poll(pfd, clnt->njobs, timeout_value(&timeout)) < 0)
+	if (poll(pfd, clnt->conf.njobs, timeout_value(&timeout)) < 0)
 		log_fatal("poll: %m");
 
 	timeout_init(&timeout, -1);
-	for (i = 0; i < clnt->njobs; ++i) {
+	for (i = 0; i < clnt->conf.njobs; ++i) {
 		struct sumjob *job = clnt->jobs[i];
 
 		if (pfd[i].revents & POLLERR) {
@@ -386,8 +406,8 @@ sumclnt_poll(struct sumclnt *clnt)
 		}
 	}
 
-	if (opt_trace) {
-		for (i = 0; i < clnt->njobs; ++i) {
+	if (clnt->conf.trace) {
+		for (i = 0; i < clnt->conf.njobs; ++i) {
 			struct sumjob *job = clnt->jobs[i];
 
 			if (!job) {
@@ -410,7 +430,7 @@ sumclnt_poll(struct sumclnt *clnt)
 		}
 	}
 
-	for (i = 0; i < clnt->njobs; ++i) {
+	for (i = 0; i < clnt->conf.njobs; ++i) {
 		struct sumjob *job = clnt->jobs[i];
 
 		if (!job)
@@ -667,7 +687,7 @@ __sumjob_set_timeout(struct timeval *deadline, unsigned long timeout_usec)
 static void
 sumjob_set_timeout(struct sumclnt *clnt, struct sumjob *job)
 {
-	__sumjob_set_timeout(&job->timeout, clnt->job_timeout * 1000000);
+	__sumjob_set_timeout(&job->timeout, clnt->conf.job_timeout * 1000000);
 }
 
 struct sumjob *
@@ -680,7 +700,7 @@ sumjob_new(struct sumclnt *clnt, unsigned int jobid, unsigned int num_ints)
 	job->name = strdup(namebuf);
 	job->id = jobid;
 
-	job->max_calls = random() % clnt->max_calls;
+	job->max_calls = random() % clnt->conf.max_calls;
 	job->num_ints = num_ints;
 
 	gettimeofday(&job->ctime, NULL);
