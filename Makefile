@@ -6,7 +6,7 @@ CCOPT	= -O2
 CFLAGS	= -Wall $(CCOPT) -I/usr/include/tirpc -I.
 APPS	= rpc.squared square rpctest getaddr \
 	  bug940191
-LINK	= -L. -lrpctest -lsuselog -ltirpc
+LINK	= -L. -lrpctest -lsuselog -ltirpc -lgssapi_krb5
 
 SRVSRCS	= server_main.c
 CLTSRCS	= client_main.c \
