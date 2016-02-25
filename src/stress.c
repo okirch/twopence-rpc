@@ -31,6 +31,7 @@
  */
 
 #include <sys/poll.h>
+#include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
 #include <errno.h>
@@ -192,15 +193,26 @@ stress_opts_set(struct stress_opts *opt, int argc, char **argv)
 				log_error("missing value to %s argument", name);
 				goto ignore_arg;
 			}
-			number = strtoul(value, &s, 0);
-			if (s && *s) {
-				log_error("cannot parse numeric value to %s=%s", name, value);
-				goto ignore_arg;
-			}
+			if (!strcmp(value, "nfiles")) {
+				struct rlimit rlim;
 
-			if (number <= 0) {
-				log_error("%s value must not be negative", name);
-				goto ignore_arg;
+				if (getrlimit(RLIMIT_NOFILE, &rlim) < 0) {
+					log_error("cannot get RLIMIT_NOFILE,: %m");
+					goto ignore_arg;
+				}
+				number = rlim.rlim_cur;
+				printf("Using %s=%lu - expect a few error messages\n", name, number);
+			} else {
+				number = strtoul(value, &s, 0);
+				if (s && *s) {
+					log_error("cannot parse numeric value to %s=%s", name, value);
+					goto ignore_arg;
+				}
+
+				if (number <= 0) {
+					log_error("%s value must not be negative", name);
+					goto ignore_arg;
+				}
 			}
 		}
 
