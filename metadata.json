@@ -1,0 +1,16 @@
+{
+  "name": "twopence-rpc",
+  "summary": "Test suite for Sun RPC",
+  "description": "SLEnkins test suite for Sun Remote Procedure Calls.",
+  "status": "ready",
+  "maintainer": ["Olaf Kirch <okirch@suse.com>"],
+  "rpm": ["twopence-rpc", "twopence-rpc-control"],
+  "arch": ["noarch"],
+  "product": "rpc",
+  "fate": null,
+  "bnc": null,
+  "updated_at": "2015-09-28 13:35:00 UTC",
+  "tags": ["slenkins"],
+  "nodes": ["client", "server"],
+  "incompatible": []
+}
