@@ -54,7 +54,7 @@ main(int argc, char **argv)
 			break;
 
 		case 'T':
-			if (optarg == '\0')
+			if (optarg && *optarg == '\0')
 				optarg = NULL;
 			opt_nettype[num_nettypes++] = optarg;
 			break;

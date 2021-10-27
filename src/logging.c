@@ -174,7 +174,7 @@ static void
 __log_print_jlogger(int type, const char *name, const char *extra_fmt, va_list extra_ap)
 {
 	struct timeval current_time;
-	char timestamp[24];
+	char timestamp[64];
 
 	gettimeofday(&current_time, NULL);
 	strftime(timestamp, 20, "%Y-%m-%dT%H:%M:%S", gmtime(&current_time.tv_sec));
